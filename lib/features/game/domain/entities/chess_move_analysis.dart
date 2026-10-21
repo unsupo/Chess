@@ -26,6 +26,14 @@ int pieceValue(chess_lib.PieceType type) {
   }
 }
 
+/// Move in UCI notation (e.g. 'd1h5', 'f1c4', 'h5f7', 'e7e8q').
+String moveToUci(chess_lib.Move m) {
+  final from = chess_lib.Chess.algebraic(m.from);
+  final to = chess_lib.Chess.algebraic(m.to);
+  final promo = m.promotion != null ? m.promotion!.name : '';
+  return '$from$to$promo';
+}
+
 /// Applies a UCI move string (e.g. "e2e4", "e7e8q") to [fen] and returns the
 /// resulting FEN.
 String applyUciToFen(String fen, String uci) {

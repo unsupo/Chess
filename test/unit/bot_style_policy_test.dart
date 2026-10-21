@@ -5,6 +5,7 @@
 // standing in for what a MultiPV search would return. See
 // docs/features/bot_play_styles.md for the scoring formulas under test.
 import 'package:flutter_test/flutter_test.dart';
+import 'package:chess_teacher/features/game/domain/entities/bot_move_strategy.dart';
 import 'package:chess_teacher/features/game/domain/entities/bot_style_policy.dart';
 import 'package:chess_teacher/features/game/domain/entities/engine_move_candidate.dart';
 
@@ -107,19 +108,41 @@ void main() {
     });
   });
 
-  group('styleForPersonalityId', () {
-    test('returns the right policy type for trickster/defender', () {
-      expect(styleForPersonalityId('trickster'), isA<TricksterStylePolicy>());
-      expect(styleForPersonalityId('defender'), isA<DefenderStylePolicy>());
-    });
+  // Registry lookup moved to bot_move_strategy.dart as part of unifying
+  // every personality's move selection under one BotMoveStrategy interface
+  // — see docs/features/refactor_03_bot_strategy_pattern.md. Kept here
+  // since it's still exercising these two classes' identity.
+  group('strategyForPersonalityId', () {
+    test(
+      'returns the right strategy type for every registered personality',
+      () {
+        expect(strategyForPersonalityId('aggressor'), isA<AggressorStrategy>());
+        expect(
+          strategyForPersonalityId('pawn_pusher'),
+          isA<PawnPusherStrategy>(),
+        );
+        expect(
+          strategyForPersonalityId('trickster'),
+          isA<TricksterStylePolicy>(),
+        );
+        expect(
+          strategyForPersonalityId('defender'),
+          isA<DefenderStylePolicy>(),
+        );
+      },
+    );
 
-    test('returns null for personalities without a style policy here '
-        '(aggressor/pawn_pusher have their own dedicated policy)', () {
-      expect(styleForPersonalityId('martin'), isNull);
-      expect(styleForPersonalityId('strategist'), isNull);
-      expect(styleForPersonalityId('crusher'), isNull);
-      expect(styleForPersonalityId('aggressor'), isNull);
-      expect(styleForPersonalityId('pawn_pusher'), isNull);
+    test('falls back to DefaultBotMoveStrategy for personalities with no '
+        'dedicated strategy', () {
+      expect(strategyForPersonalityId('martin'), isA<DefaultBotMoveStrategy>());
+      expect(
+        strategyForPersonalityId('strategist'),
+        isA<DefaultBotMoveStrategy>(),
+      );
+      expect(
+        strategyForPersonalityId('crusher'),
+        isA<DefaultBotMoveStrategy>(),
+      );
     });
   });
 }

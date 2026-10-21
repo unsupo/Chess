@@ -1,6 +1,6 @@
 # Refactor Phase 2: Consolidate Duplicated Chess Helpers
 
-**Status:** Planned — not built. Part of
+**Status:** Built. Part of
 [refactor_overview.md](refactor_overview.md), phase 2. Independent of
 phase 1 — can be done before, after, or in parallel with it.
 

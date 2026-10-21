@@ -1,9 +1,25 @@
 # Refactor Phase 3: Unify Personality Move Selection (Strategy Pattern)
 
-**Status:** Planned — not built. Part of
-[refactor_overview.md](refactor_overview.md), phase 3. Depends on phase 2
-(shared helpers) being done first, since the adapters below call into
-`chess_move_analysis.dart`'s now-consolidated functions.
+**Status:** Built, matching this plan with one addition discovered during
+implementation: `BotMoveContext` gained an optional `recordEval` callback
+(`void Function(String fen, int scoreCp)?`). The original sketch below
+didn't account for `_pickBotMove`'s Aggressor/Pawn Pusher/style-policy
+branches each writing their top candidate's score into `GameNotifier`'s
+`_fenEvalCache` (feeding the game-review/eval-graph features) as a side
+effect of their `getTopMoves` call — dropping that would have been a real
+behavior regression, not just a structural move. Strategies call
+`ctx.recordEval?.call(fen, scoreCp)` after a candidate fetch instead of
+reaching into `GameNotifier` state directly (which would violate
+[architecture_backend_frontend_boundary.md](architecture_backend_frontend_boundary.md)-style
+layering — a domain class has no business knowing about a presentation
+layer's cache); `GameNotifier` supplies the callback wired to its own
+`_fenEvalCache`. `DefaultBotMoveStrategy` doesn't call it (the real
+`_pickBotMove` never recorded eval on that path either). Also:
+`CandidateScoringStrategy` (an intermediate abstract class in
+`bot_style_policy.dart`) was added, not originally planned, so
+`TricksterStylePolicy`/`DefenderStylePolicy`'s identical
+mate-in-1-check + candidate-fetch + draw-filter wrapper isn't duplicated
+between the two — see that file for the actual shape.
 
 ## Problem
 

@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:chess/chess.dart' as chess_lib;
+import '../entities/chess_move_analysis.dart';
 import '../entities/engine_move_candidate.dart';
 
 /// Pure-Dart domain policy that implements the 3-Phase Fast-Mate Hunter:
@@ -37,7 +38,7 @@ class ScholarsMateHunterPolicy {
       final isMate = chess.in_checkmate;
       chess.undo_move();
       if (isMate) {
-        return _moveToUci(move);
+        return moveToUci(move);
       }
     }
     return null;
@@ -52,7 +53,7 @@ class ScholarsMateHunterPolicy {
   ]) {
     final chess = chess_lib.Chess()..load(fen);
     for (final move in chess.generate_moves()) {
-      final uci = _moveToUci(move);
+      final uci = moveToUci(move);
       if (wouldCauseDraw(fen, uci, positionCounts)) continue;
       chess.make_move(move);
       if (chess.in_checkmate) {
@@ -203,9 +204,7 @@ class ScholarsMateHunterPolicy {
       fen.split(RegExp(r'\s+')).take(4).join(' ');
 
   /// Phase 2: Picks the candidate with the smallest positive `mateIn`.
-  static String? _findShortestForcedMate(
-    List<EngineMoveCandidate> candidates,
-  ) {
+  static String? _findShortestForcedMate(List<EngineMoveCandidate> candidates) {
     EngineMoveCandidate? bestMate;
     for (final c in candidates) {
       if (c.mateIn != null && c.mateIn! > 0) {
@@ -234,8 +233,7 @@ class ScholarsMateHunterPolicy {
     if (fullMoveNumber > 6) return null;
 
     final isWhite = chess.turn == chess_lib.Color.WHITE;
-    final them =
-        isWhite ? chess_lib.Color.BLACK : chess_lib.Color.WHITE;
+    final them = isWhite ? chess_lib.Color.BLACK : chess_lib.Color.WHITE;
     final enemyKingSq = _findKingSquare(chess, them);
     final targetWeakSq = isWhite ? 'f7' : 'f2';
     // Only run the f7/f2 Scholar's Mate opening book while f7/f2 is adjacent
@@ -243,9 +241,7 @@ class ScholarsMateHunterPolicy {
     if (enemyKingSq == null || _chebyshevDist(enemyKingSq, targetWeakSq) > 1) {
       return null;
     }
-    final legalUcis = {
-      for (final m in chess.generate_moves()) _moveToUci(m),
-    };
+    final legalUcis = {for (final m in chess.generate_moves()) moveToUci(m)};
 
     final desiredTrapMoves = <String>[];
 
@@ -283,13 +279,15 @@ class ScholarsMateHunterPolicy {
       }
 
       // 3. Bring out Qh5 and Bc4 to form the Scholar's Mate battery on f7
-      final queenOnBattery = (h5Piece?.type == chess_lib.PieceType.QUEEN &&
+      final queenOnBattery =
+          (h5Piece?.type == chess_lib.PieceType.QUEEN &&
               h5Piece?.color == chess_lib.Color.WHITE) ||
           (f3Piece?.type == chess_lib.PieceType.QUEEN &&
               f3Piece?.color == chess_lib.Color.WHITE) ||
           (b3Piece?.type == chess_lib.PieceType.QUEEN &&
               b3Piece?.color == chess_lib.Color.WHITE);
-      final bishopOnBattery = c4Piece?.type == chess_lib.PieceType.BISHOP &&
+      final bishopOnBattery =
+          c4Piece?.type == chess_lib.PieceType.BISHOP &&
           c4Piece?.color == chess_lib.Color.WHITE;
 
       if (d1Piece?.type == chess_lib.PieceType.QUEEN &&
@@ -358,13 +356,15 @@ class ScholarsMateHunterPolicy {
         desiredTrapMoves.addAll(['f6b6', 'f6g6', 'f6e6']);
       }
 
-      final queenOnBattery = (h4Piece?.type == chess_lib.PieceType.QUEEN &&
+      final queenOnBattery =
+          (h4Piece?.type == chess_lib.PieceType.QUEEN &&
               h4Piece?.color == chess_lib.Color.BLACK) ||
           (f6Piece?.type == chess_lib.PieceType.QUEEN &&
               f6Piece?.color == chess_lib.Color.BLACK) ||
           (b6Piece?.type == chess_lib.PieceType.QUEEN &&
               b6Piece?.color == chess_lib.Color.BLACK);
-      final bishopOnBattery = c5Piece?.type == chess_lib.PieceType.BISHOP &&
+      final bishopOnBattery =
+          c5Piece?.type == chess_lib.PieceType.BISHOP &&
           c5Piece?.color == chess_lib.Color.BLACK;
 
       if (d8Piece?.type == chess_lib.PieceType.QUEEN &&
@@ -401,8 +401,9 @@ class ScholarsMateHunterPolicy {
       }
     }
 
-    final bestEngineScore =
-        candidates.isNotEmpty ? candidates.first.scoreCp : 0;
+    final bestEngineScore = candidates.isNotEmpty
+        ? candidates.first.scoreCp
+        : 0;
 
     for (final trapUci in desiredTrapMoves) {
       if (!legalUcis.contains(trapUci)) continue;
@@ -417,8 +418,9 @@ class ScholarsMateHunterPolicy {
 
       // Safety Check 2: If engine candidates include this move, verify it's within
       // openingTrapToleranceCp of the best move.
-      final matchingCandidate =
-          candidates.where((c) => c.uci == trapUci).firstOrNull;
+      final matchingCandidate = candidates
+          .where((c) => c.uci == trapUci)
+          .firstOrNull;
       if (matchingCandidate != null) {
         if (matchingCandidate.mateIn != null && matchingCandidate.mateIn! < 0) {
           continue;
@@ -444,14 +446,15 @@ class ScholarsMateHunterPolicy {
     Map<String, int> positionCounts,
   ) {
     final existingUcis = {for (final c in existingCandidates) c.uci};
-    final bestCp =
-        existingCandidates.isNotEmpty ? existingCandidates.first.scoreCp : 0;
+    final bestCp = existingCandidates.isNotEmpty
+        ? existingCandidates.first.scoreCp
+        : 0;
     final chess = chess_lib.Chess()..load(fen);
     final us = chess.turn;
     final discovered = <EngineMoveCandidate>[];
 
     for (final m in chess.generate_moves()) {
-      final uci = _moveToUci(m);
+      final uci = moveToUci(m);
       if (existingUcis.contains(uci)) continue;
       if (wouldCauseDraw(fen, uci, positionCounts) ||
           wouldRepeatPosition(fen, uci, positionCounts)) {
@@ -558,7 +561,7 @@ class ScholarsMateHunterPolicy {
     // legal moves to find a safe non-drawing attacking move if one exists.
     if (wouldCauseDraw(fen, bestUci, positionCounts)) {
       for (final m in chess.generate_moves()) {
-        final uci = _moveToUci(m);
+        final uci = moveToUci(m);
         if (!wouldCauseDraw(fen, uci, positionCounts) &&
             !wouldRepeatPosition(fen, uci, positionCounts) &&
             !_hangsQueenOrAllowsMate(fen, uci)) {
@@ -579,8 +582,9 @@ class ScholarsMateHunterPolicy {
   }) {
     final before = chess_lib.Chess()..load(fen);
     final us = before.turn;
-    final them =
-        us == chess_lib.Color.WHITE ? chess_lib.Color.BLACK : chess_lib.Color.WHITE;
+    final them = us == chess_lib.Color.WHITE
+        ? chess_lib.Color.BLACK
+        : chess_lib.Color.WHITE;
 
     final fromSq = uci.substring(0, 2);
     final toSq = uci.substring(2, 4);
@@ -638,7 +642,7 @@ class ScholarsMateHunterPolicy {
 
     // 3. Captures (weighted higher if near the enemy King or removing a King defender!)
     if (capturedPiece != null) {
-      final victimVal = _pieceValue(capturedPiece.type);
+      final victimVal = pieceValue(capturedPiece.type);
       bonus += victimVal * 24;
       if (enemyKingSq != null && _chebyshevDist(toSq, enemyKingSq) <= 2) {
         bonus += 145; // Ripping open the enemy King's shield!
@@ -669,7 +673,8 @@ class ScholarsMateHunterPolicy {
     }
 
     // 6. Heavy Penalty for Trading Queens (-550)
-    final isQueenTrade = movingPiece.type == chess_lib.PieceType.QUEEN &&
+    final isQueenTrade =
+        movingPiece.type == chess_lib.PieceType.QUEEN &&
         capturedPiece?.type == chess_lib.PieceType.QUEEN;
     if (isQueenTrade) {
       bonus -= 550;
@@ -681,31 +686,6 @@ class ScholarsMateHunterPolicy {
   }
 
   // ── Internal Board Helpers ──────────────────────────────────────────────
-
-  static String _moveToUci(chess_lib.Move m) {
-    final from = chess_lib.Chess.algebraic(m.from);
-    final to = chess_lib.Chess.algebraic(m.to);
-    final promo = m.promotion != null ? m.promotion!.name : '';
-    return '$from$to$promo';
-  }
-
-  static int _pieceValue(chess_lib.PieceType type) {
-    switch (type) {
-      case chess_lib.PieceType.PAWN:
-        return 1;
-      case chess_lib.PieceType.KNIGHT:
-      case chess_lib.PieceType.BISHOP:
-        return 3;
-      case chess_lib.PieceType.ROOK:
-        return 5;
-      case chess_lib.PieceType.QUEEN:
-        return 9;
-      case chess_lib.PieceType.KING:
-        return 0;
-      default:
-        return 0;
-    }
-  }
 
   static String? _findKingSquare(chess_lib.Chess chess, chess_lib.Color color) {
     const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
@@ -751,6 +731,12 @@ class ScholarsMateHunterPolicy {
 
   /// Checks if playing `uci` from `fen` allows the opponent to capture our Queen
   /// or deliver mate-in-1 on the very next ply.
+  ///
+  /// Deliberately distinct from `chess_move_analysis.dart`'s
+  /// `hangingPieceValueAfter` (general hanging-value-after-a-move check) —
+  /// this is narrower (queen-only) and also covers mate-in-1, which that
+  /// function doesn't. See docs/features/refactor_02_shared_chess_helpers.md
+  /// for why these stay separate functions rather than being merged.
   static bool _hangsQueenOrAllowsMate(String fen, String uci) {
     final chess = chess_lib.Chess()..load(fen);
     final us = chess.turn;
@@ -823,9 +809,10 @@ class ScholarsMateHunterPolicy {
     final movedPiece = before.get(fromSq);
     final capturedPiece = before.get(toSq);
     if (movedPiece == null) return false;
-    final movedVal = _pieceValue(movedPiece.type);
-    final capturedVal =
-        capturedPiece != null ? _pieceValue(capturedPiece.type) : 0;
+    final movedVal = pieceValue(movedPiece.type);
+    final capturedVal = capturedPiece != null
+        ? pieceValue(capturedPiece.type)
+        : 0;
 
     final after = chess_lib.Chess()..load(fen);
     if (!after.move({
@@ -843,7 +830,7 @@ class ScholarsMateHunterPolicy {
       if (oppTo != toSq) continue;
       final oppFrom = chess_lib.Chess.algebraic(oppMove.from);
       final attacker = after.get(oppFrom);
-      final attackerVal = attacker != null ? _pieceValue(attacker.type) : 1;
+      final attackerVal = attacker != null ? pieceValue(attacker.type) : 1;
 
       after.make_move(oppMove);
       // If capturing our piece walks straight into Mate-in-1, it's a true
@@ -881,7 +868,8 @@ class ScholarsMateHunterPolicy {
     int matedReplies,
     int safeReplies,
     double matedRatio,
-  }) _analyzeOpponentMateSurvival(String afterFen) {
+  })
+  _analyzeOpponentMateSurvival(String afterFen) {
     final after = chess_lib.Chess()..load(afterFen);
     final oppMoves = after.generate_moves();
     if (oppMoves.isEmpty) {

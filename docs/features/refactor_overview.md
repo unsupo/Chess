@@ -38,6 +38,18 @@ either order or in parallel; 3, 4, 5 are strictly sequential (each
 phase's target shape is what the next phase's doc assumes already
 exists).
 
+## Standing architectural principle: backend/frontend boundary
+
+Separately from the 5 phases above (not a migration — already true,
+just codified):
+[architecture_backend_frontend_boundary.md](architecture_backend_frontend_boundary.md)
+maps the existing `domain`/`data`/`presentation` split onto MVC and
+states the hard rule that keeps it that way: only `data/repositories/`
+may import a real backend/network/platform dependency, everything else
+talks to it through a `domain/repositories/` interface. Worth re-reading
+before any future feature that touches a network/platform/SDK
+dependency for the first time (multiplayer, cloud save, accounts, etc.).
+
 ## Non-goals
 
 - No new features, no UI changes, no test-behavior changes. Existing

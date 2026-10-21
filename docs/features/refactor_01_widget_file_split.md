@@ -1,6 +1,6 @@
 # Refactor Phase 1: Widget File Split
 
-**Status:** Planned — not built. Part of
+**Status:** Built. Part of
 [refactor_overview.md](refactor_overview.md), phase 1.
 
 ## Problem

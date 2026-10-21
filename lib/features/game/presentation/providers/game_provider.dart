@@ -6,15 +6,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:chess/chess.dart' as chess_lib;
 import '../../data/repositories/chess_engine_repository_impl.dart';
+import '../../domain/entities/bot_move_strategy.dart';
 import '../../domain/entities/bot_personality.dart';
-import '../../domain/entities/bot_style_policy.dart';
+import '../../domain/entities/chess_move_analysis.dart' show applyUciToFen;
 import '../../domain/entities/chess_opening.dart';
 import '../../domain/entities/move_result.dart';
 import '../../domain/entities/time_control.dart';
 import '../../domain/repositories/chess_engine_repository.dart';
 import '../../domain/usecases/attempt_move_usecase.dart';
 import '../../domain/usecases/game_review_analyzer.dart';
-import '../../domain/usecases/pawn_pusher_policy.dart';
 import '../../domain/usecases/scholars_mate_hunter_policy.dart';
 
 export '../../domain/entities/chess_opening.dart';
@@ -598,7 +598,7 @@ class GameNotifier extends StateNotifier<GameState> {
         );
       }
       try {
-        final newFen = _applyUci(state.fen, uci);
+        final newFen = applyUciToFen(state.fen, uci);
         await onUserMove(newFen);
         return developer.ServiceExtensionResponse.result(
           '{"fen":"${state.fen}","error":${state.errorMessage == null ? 'null' : '"${state.errorMessage}"'}}',
@@ -660,7 +660,7 @@ class GameNotifier extends StateNotifier<GameState> {
       final to = chess_lib.Chess.algebraic(m.to);
       final promo = m.promotion != null ? m.promotion!.name : '';
       final uci = '$from$to$promo';
-      final afterFen = _applyUci(fen, uci);
+      final afterFen = applyUciToFen(fen, uci);
       // evaluateFen is from the perspective of the side to move in
       // afterFen — i.e. the opponent. The higher that is, the worse this
       // move was for the bot.
@@ -730,133 +730,22 @@ class GameNotifier extends StateNotifier<GameState> {
       }
     }
 
-    if (state.personality.id == 'aggressor') {
-      final mateIn1 = ScholarsMateHunterPolicy.findImmediateMateIn1(fen);
-      if (mateIn1 != null) return mateIn1;
-
-      final mateIn2 = ScholarsMateHunterPolicy.findForcedMateIn2(
-        fen,
-        posCounts,
-      );
-      if (mateIn2 != null) return mateIn2;
-
-      final candidates = await _engine.getTopMoves(
-        fen,
-        movetimeMs: _moveTimeMs(elo),
-        multiPv: 10,
-        mateLimit: 8,
-      );
-      if (candidates.isNotEmpty) {
-        _fenEvalCache[GameReviewAnalyzer.fenKey(fen)] =
-            candidates.first.scoreCp;
-      }
-      final chosen = ScholarsMateHunterPolicy.selectMove(
-        fen: fen,
-        candidates: candidates,
-        positionCounts: posCounts,
-      );
-      if (chosen != null && chosen.isNotEmpty) {
-        return chosen;
-      }
-    }
-
-    if (state.personality.id == 'pawn_pusher') {
-      final mateIn1 = ScholarsMateHunterPolicy.findImmediateMateIn1(fen);
-      if (mateIn1 != null) return mateIn1;
-
-      final candidates = await _engine.getTopMoves(
-        fen,
-        movetimeMs: _moveTimeMs(elo),
-        multiPv: 10,
-      );
-      if (candidates.isNotEmpty) {
-        _fenEvalCache[GameReviewAnalyzer.fenKey(fen)] =
-            candidates.first.scoreCp;
-      }
-      final chosen = PawnPusherPolicy.selectMove(
-        fen: fen,
-        candidates: candidates,
-        positionCounts: posCounts,
-      );
-      if (chosen != null && chosen.isNotEmpty) {
-        return chosen;
-      }
-    }
-
-    final stylePolicy = styleForPersonalityId(state.personality.id);
-    if (stylePolicy != null) {
-      final mateIn1 = ScholarsMateHunterPolicy.findImmediateMateIn1(fen);
-      if (mateIn1 != null) return mateIn1;
-
-      final candidates = await _engine.getTopMoves(
-        fen,
-        movetimeMs: _moveTimeMs(elo),
-        multiPv: 6,
-      );
-      if (candidates.isNotEmpty) {
-        _fenEvalCache[GameReviewAnalyzer.fenKey(fen)] =
-            candidates.first.scoreCp;
-      }
-      final nonDrawing = candidates
-          .where(
-            (c) =>
-                !ScholarsMateHunterPolicy.wouldCauseDraw(
-                  fen,
-                  c.uci,
-                  posCounts,
-                ) &&
-                !ScholarsMateHunterPolicy.wouldRepeatPosition(
-                  fen,
-                  c.uci,
-                  posCounts,
-                ),
-          )
-          .toList();
-      final chosen = stylePolicy.pickMove(
-        fen,
-        nonDrawing.isNotEmpty ? nonDrawing : candidates,
-      );
-      if (chosen != null && chosen.isNotEmpty) {
-        return chosen;
-      }
-    }
-
-    final bestMove = await _engine.getBestMove(
-      fen,
-      movetimeMs: _moveTimeMs(elo),
+    // Personality-specific move selection — see
+    // docs/features/refactor_03_bot_strategy_pattern.md. Each personality's
+    // actual logic still lives in its own policy class; this is just the
+    // unified dispatch + fallback.
+    final ctx = BotMoveContext(
+      fen: fen,
+      elo: elo,
+      engine: _engine,
+      positionCounts: posCounts,
+      recordEval: (f, cp) => _fenEvalCache[GameReviewAnalyzer.fenKey(f)] = cp,
     );
-    if (bestMove.isNotEmpty &&
-        bestMove != '(none)' &&
-        (ScholarsMateHunterPolicy.wouldCauseDraw(fen, bestMove, posCounts) ||
-            ScholarsMateHunterPolicy.wouldRepeatPosition(
-              fen,
-              bestMove,
-              posCounts,
-            ))) {
-      final candidates = await _engine.getTopMoves(
-        fen,
-        movetimeMs: _moveTimeMs(elo),
-        multiPv: 5,
-      );
-      for (final c in candidates) {
-        if (c.mateIn != null && c.mateIn! < 0) continue;
-        if (!ScholarsMateHunterPolicy.wouldCauseDraw(fen, c.uci, posCounts) &&
-            !ScholarsMateHunterPolicy.wouldRepeatPosition(
-              fen,
-              c.uci,
-              posCounts,
-            )) {
-          return c.uci;
-        }
-      }
-      for (final c in candidates) {
-        if (c.mateIn != null && c.mateIn! < 0) continue;
-        if (!ScholarsMateHunterPolicy.wouldCauseDraw(fen, c.uci, posCounts)) {
-          return c.uci;
-        }
-      }
-    }
-    return bestMove;
+    final chosen = await strategyForPersonalityId(
+      state.personality.id,
+    ).selectMove(ctx);
+    if (chosen != null && chosen.isNotEmpty) return chosen;
+    return await DefaultBotMoveStrategy().selectMove(ctx) ?? '(none)';
   }
 
   Future<void> setDifficulty(int elo) async {
@@ -1049,7 +938,7 @@ class GameNotifier extends StateNotifier<GameState> {
   Future<String> _applyMateSafety(String fen, String candidateUci) async {
     if (!state.mateSafetyEnabled) return candidateUci;
     final n = state.mateSafetyN;
-    final afterCandidate = _applyUci(fen, candidateUci);
+    final afterCandidate = applyUciToFen(fen, candidateUci);
     final humanMateIn = await _engine.getMateDistance(
       afterCandidate,
       movetimeMs: (n * 200).clamp(300, 3000),
@@ -1515,12 +1404,6 @@ class GameNotifier extends StateNotifier<GameState> {
     final history = chess.getHistory();
     final san = history.isNotEmpty ? history.last as String : null;
     return (chess.fen, san);
-  }
-
-  /// Applies a UCI move string to a FEN and returns the resulting FEN.
-  static String _applyUci(String fen, String uci) {
-    final (afterFen, _) = _applyUciWithSan(fen, uci);
-    return afterFen;
   }
 
   /// Parses a PGN string (with or without headers) and returns

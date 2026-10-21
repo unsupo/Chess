@@ -1,4 +1,5 @@
 import 'package:chess/chess.dart' as chess_lib;
+import '../entities/chess_move_analysis.dart';
 import '../entities/engine_move_candidate.dart';
 import 'scholars_mate_hunter_policy.dart';
 
@@ -144,8 +145,9 @@ class PawnPusherPolicy {
       // 3. Advancement rank bonus (how far up the board the pawn reaches)
       final toRank = int.parse(toSq[1]);
       final fromRank = int.parse(fromSq[1]);
-      final relativeRank =
-          us == chess_lib.Color.WHITE ? toRank : (9 - toRank); // 2..8
+      final relativeRank = us == chess_lib.Color.WHITE
+          ? toRank
+          : (9 - toRank); // 2..8
       bonus += (relativeRank - 2) * 42;
       if (relativeRank >= 6) {
         bonus += 130; // Deep thorn/passed pawn on 6th or 7th rank!
@@ -182,7 +184,7 @@ class PawnPusherPolicy {
 
       // 8. Pawn capture bonus
       if (capturedPiece != null) {
-        bonus += 130 + _pieceValue(capturedPiece.type) * 28;
+        bonus += 130 + pieceValue(capturedPiece.type) * 28;
       }
 
       // 9. Pawn chain / supported square bonus
@@ -192,7 +194,7 @@ class PawnPusherPolicy {
     } else {
       // Non-pawn move: reward capturing high-value pieces or giving check when no safe pawn push applies
       if (capturedPiece != null) {
-        bonus += _pieceValue(capturedPiece.type) * 18;
+        bonus += pieceValue(capturedPiece.type) * 18;
       }
       if (after.in_check) {
         bonus += 60;
@@ -211,8 +213,9 @@ class PawnPusherPolicy {
     Map<String, int> positionCounts,
   ) {
     final existingUcis = {for (final c in existingCandidates) c.uci};
-    final bestCp =
-        existingCandidates.isNotEmpty ? existingCandidates.first.scoreCp : 0;
+    final bestCp = existingCandidates.isNotEmpty
+        ? existingCandidates.first.scoreCp
+        : 0;
     final chess = chess_lib.Chess()..load(fen);
     if (chess.in_check) return const [];
 
@@ -223,7 +226,7 @@ class PawnPusherPolicy {
     final discovered = <EngineMoveCandidate>[];
     for (final m in chess.generate_moves()) {
       if (m.piece != chess_lib.PieceType.PAWN) continue;
-      final uci = _moveToUci(m);
+      final uci = moveToUci(m);
       if (existingUcis.contains(uci)) continue;
       if (ScholarsMateHunterPolicy.wouldCauseDraw(fen, uci, positionCounts) ||
           ScholarsMateHunterPolicy.wouldRepeatPosition(
@@ -235,45 +238,22 @@ class PawnPusherPolicy {
       }
       if (!_isSafePawnOrPieceMove(fen, uci)) continue;
 
-      discovered.add(
-        EngineMoveCandidate(
-          uci: uci,
-          scoreCp: bestCp - 95,
-        ),
-      );
+      discovered.add(EngineMoveCandidate(uci: uci, scoreCp: bestCp - 95));
     }
     return discovered;
   }
 
   // ── Internal Board Helpers ──────────────────────────────────────────────
 
-  static String _moveToUci(chess_lib.Move m) {
-    final from = chess_lib.Chess.algebraic(m.from);
-    final to = chess_lib.Chess.algebraic(m.to);
-    final promo = m.promotion != null ? m.promotion!.name : '';
-    return '$from$to$promo';
-  }
-
-  static int _pieceValue(chess_lib.PieceType type) {
-    switch (type) {
-      case chess_lib.PieceType.PAWN:
-        return 1;
-      case chess_lib.PieceType.KNIGHT:
-      case chess_lib.PieceType.BISHOP:
-        return 3;
-      case chess_lib.PieceType.ROOK:
-        return 5;
-      case chess_lib.PieceType.QUEEN:
-        return 9;
-      case chess_lib.PieceType.KING:
-        return 0;
-      default:
-        return 0;
-    }
-  }
-
   /// Checks whether any of our Knights, Bishops, Rooks, or Queens are currently
   /// attacked by a lower-value enemy piece or undefended against an enemy capture.
+  ///
+  /// Deliberately distinct from `chess_move_analysis.dart`'s
+  /// `hangingPieceValueAfter` (general hanging-value-after-a-hypothetical-move
+  /// check) — this one is scoped to non-pawn pieces on the *current* board,
+  /// with no hypothetical move involved. See
+  /// docs/features/refactor_02_shared_chess_helpers.md for why these stay
+  /// separate functions rather than being merged.
   static bool _hasHangingNonPawnPiece(chess_lib.Chess currentChess) {
     final us = currentChess.turn;
     final tokens = currentChess.fen.split(' ');
@@ -294,8 +274,8 @@ class PawnPusherPolicy {
       }
       final attackerSq = chess_lib.Chess.algebraic(oppMove.from);
       final attacker = currentChess.get(attackerSq);
-      final victimVal = _pieceValue(victim.type);
-      final attackerVal = attacker != null ? _pieceValue(attacker.type) : 1;
+      final victimVal = pieceValue(victim.type);
+      final attackerVal = attacker != null ? pieceValue(attacker.type) : 1;
 
       if (attackerVal < victimVal) return true;
 
@@ -326,10 +306,10 @@ class PawnPusherPolicy {
     final capturedPiece = before.get(toSq);
     if (movedPiece == null) return false;
 
-    final movedVal =
-        uci.length > 4 ? 9 : _pieceValue(movedPiece.type);
-    final capturedVal =
-        capturedPiece != null ? _pieceValue(capturedPiece.type) : 0;
+    final movedVal = uci.length > 4 ? 9 : pieceValue(movedPiece.type);
+    final capturedVal = capturedPiece != null
+        ? pieceValue(capturedPiece.type)
+        : 0;
 
     final after = chess_lib.Chess()..load(fen);
     if (!after.move({
@@ -362,8 +342,8 @@ class PawnPusherPolicy {
       after.undo_move();
 
       if (victim != null && victim.color == us) {
-        final victimVal = _pieceValue(victim.type);
-        final attackerVal = attacker != null ? _pieceValue(attacker.type) : 1;
+        final victimVal = pieceValue(victim.type);
+        final attackerVal = attacker != null ? pieceValue(attacker.type) : 1;
 
         // Never hang our Queen, Rook, Bishop, or Knight
         if (victimVal >= 3) {
@@ -440,9 +420,7 @@ class PawnPusherPolicy {
       if (fCode < 'a'.codeUnitAt(0) || fCode > 'h'.codeUnitAt(0)) continue;
       final targetSq = '${String.fromCharCode(fCode)}$targetRank';
       final p = after.get(targetSq);
-      if (p != null &&
-          p.color == them &&
-          p.type != chess_lib.PieceType.PAWN) {
+      if (p != null && p.color == them && p.type != chess_lib.PieceType.PAWN) {
         count++;
       }
     }
@@ -465,9 +443,7 @@ class PawnPusherPolicy {
       if (fCode < 'a'.codeUnitAt(0) || fCode > 'h'.codeUnitAt(0)) continue;
       final supportSq = '${String.fromCharCode(fCode)}$supportRank';
       final p = after.get(supportSq);
-      if (p != null &&
-          p.color == us &&
-          p.type == chess_lib.PieceType.PAWN) {
+      if (p != null && p.color == us && p.type == chess_lib.PieceType.PAWN) {
         return true;
       }
     }

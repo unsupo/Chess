@@ -4,6 +4,8 @@
 // the Pawn Pusher's in `PawnPusherPolicy`). See docs/features/bot_play_styles.md
 // for the Trickster/Defender design and scoring formulas implemented below.
 import 'package:chess/chess.dart' as chess_lib;
+import '../usecases/scholars_mate_hunter_policy.dart';
+import 'bot_move_strategy.dart';
 import 'chess_move_analysis.dart';
 import 'engine_move_candidate.dart';
 
@@ -12,6 +14,55 @@ import 'engine_move_candidate.dart';
 /// plain best move (e.g. there were no candidates to choose from).
 abstract class BotStylePolicy {
   String? pickMove(String fen, List<EngineMoveCandidate> candidates);
+}
+
+/// Wraps any [BotStylePolicy] (pure: fen + already-fetched candidates in, a
+/// move out) into a full [BotMoveStrategy] by doing the engine fetch and
+/// draw-avoidance filtering every scored-candidate personality needs
+/// identically — see docs/features/refactor_03_bot_strategy_pattern.md.
+/// Subclasses only implement [pickMove]; this shared base keeps
+/// TricksterStylePolicy and DefenderStylePolicy from each duplicating the
+/// same wrapper logic.
+abstract class CandidateScoringStrategy
+    implements BotStylePolicy, BotMoveStrategy {
+  /// How many candidates to request from the engine — override per style
+  /// (Trickster/Defender both use the same default today).
+  int get multiPv => 6;
+
+  @override
+  Future<String?> selectMove(BotMoveContext ctx) async {
+    final mateIn1 = ScholarsMateHunterPolicy.findImmediateMateIn1(ctx.fen);
+    if (mateIn1 != null) return mateIn1;
+
+    final candidates = await ctx.engine.getTopMoves(
+      ctx.fen,
+      movetimeMs: ctx.moveTimeMs,
+      multiPv: multiPv,
+    );
+    if (candidates.isNotEmpty) {
+      ctx.recordEval?.call(ctx.fen, candidates.first.scoreCp);
+    }
+    final nonDrawing = candidates
+        .where(
+          (c) =>
+              !ScholarsMateHunterPolicy.wouldCauseDraw(
+                ctx.fen,
+                c.uci,
+                ctx.positionCounts,
+              ) &&
+              !ScholarsMateHunterPolicy.wouldRepeatPosition(
+                ctx.fen,
+                c.uci,
+                ctx.positionCounts,
+              ),
+        )
+        .toList();
+    final chosen = pickMove(
+      ctx.fen,
+      nonDrawing.isNotEmpty ? nonDrawing : candidates,
+    );
+    return (chosen != null && chosen.isNotEmpty) ? chosen : null;
+  }
 }
 
 /// A comparable "how good is this for the side to move" value that folds
@@ -70,7 +121,7 @@ int _netMaterial(String fen, chess_lib.Color mover) {
 
 /// Maximize "tricks": forks, checks/discovered checks, and sound-but-
 /// unobvious sacrifices.
-class TricksterStylePolicy implements BotStylePolicy {
+class TricksterStylePolicy extends CandidateScoringStrategy {
   static const toleranceCp = 100;
 
   @override
@@ -101,7 +152,7 @@ class TricksterStylePolicy implements BotStylePolicy {
 /// Fortress/never-drop-a-piece: heavily penalize candidates that leave a
 /// bot piece hanging; small bonuses for trading down while even-or-ahead
 /// and for castling.
-class DefenderStylePolicy implements BotStylePolicy {
+class DefenderStylePolicy extends CandidateScoringStrategy {
   static const toleranceCp = 50;
 
   @override
@@ -131,20 +182,5 @@ class DefenderStylePolicy implements BotStylePolicy {
     }
 
     return _pickHighestScoring(pool, score);
-  }
-}
-
-/// Maps a personality id to its style policy, or null for personalities
-/// handled elsewhere (Aggressor -> `ScholarsMateHunterPolicy`, Pawn Pusher
-/// -> `PawnPusherPolicy`) or that keep today's plain best-move behavior
-/// (Martin, Strategist, Crusher).
-BotStylePolicy? styleForPersonalityId(String personalityId) {
-  switch (personalityId) {
-    case 'trickster':
-      return TricksterStylePolicy();
-    case 'defender':
-      return DefenderStylePolicy();
-    default:
-      return null;
   }
 }
