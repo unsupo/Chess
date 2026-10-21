@@ -1,5 +1,5 @@
 // Isolated coverage for PgnCodec — see
-// docs/features/refactor_05_game_notifier_facade.md. Previously this
+// docs/features/done/refactor_05_game_notifier_facade.md. Previously this
 // logic (toPgn's body, _findSanMove/_findUciMove, _applyUciWithSan,
 // _parsePgn) was only reachable indirectly through GameNotifier/GameState;
 // game_notifier_test.dart's existing pgn/loadPgn assertions cover the

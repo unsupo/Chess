@@ -1,7 +1,7 @@
 // Bot move selection, structured as a Chain of Responsibility (opening
 // book, then weak-play degradation, then the personality strategy) wrapped
 // in a Decorator (mate safety) — see
-// docs/features/refactor_04_bot_move_pipeline.md. `GameNotifier._pickBotMove`
+// docs/features/done/refactor_04_bot_move_pipeline.md. `GameNotifier._pickBotMove`
 // and `_applyMateSafety` used to express this ordering only implicitly, by
 // which branch ran first in one long method; this file makes the ordering
 // itself a visible, reorderable list.
@@ -137,7 +137,7 @@ class WeakPlayStep implements BotMoveStep {
 
 /// Defers to the registered `BotMoveStrategy` for `ctx.personalityId`,
 /// which itself falls back to `DefaultBotMoveStrategy` when it has nothing
-/// special to do — see docs/features/refactor_03_bot_strategy_pattern.md.
+/// special to do — see docs/features/done/refactor_03_bot_strategy_pattern.md.
 class PersonalityStrategyStep implements BotMoveStep {
   @override
   Future<String?> tryHandle(BotMoveContext ctx) async {

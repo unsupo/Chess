@@ -1,7 +1,7 @@
 // Personality-driven move selection among a MultiPV candidate list, for
 // personalities that aren't already handled by a dedicated policy (the
 // Aggressor's fast-mate/trap hunting lives in `ScholarsMateHunterPolicy`,
-// the Pawn Pusher's in `PawnPusherPolicy`). See docs/features/bot_play_styles.md
+// the Pawn Pusher's in `PawnPusherPolicy`). See docs/features/done/bot_play_styles.md
 // for the Trickster/Defender design and scoring formulas implemented below.
 import 'package:chess/chess.dart' as chess_lib;
 import '../usecases/scholars_mate_hunter_policy.dart';
@@ -19,7 +19,7 @@ abstract class BotStylePolicy {
 /// Wraps any [BotStylePolicy] (pure: fen + already-fetched candidates in, a
 /// move out) into a full [BotMoveStrategy] by doing the engine fetch and
 /// draw-avoidance filtering every scored-candidate personality needs
-/// identically — see docs/features/refactor_03_bot_strategy_pattern.md.
+/// identically — see docs/features/done/refactor_03_bot_strategy_pattern.md.
 /// Subclasses only implement [pickMove]; this shared base keeps
 /// TricksterStylePolicy and DefenderStylePolicy from each duplicating the
 /// same wrapper logic.

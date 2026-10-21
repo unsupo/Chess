@@ -191,7 +191,7 @@ bool movesCreatesFork(String fen, String uci) {
 ///
 /// "Defended" here means "some legal recapture exists on that square" —
 /// deliberately not weighing whether the recapture is itself a good trade.
-/// That's a simplification flagged in docs/features/bot_play_styles.md.
+/// That's a simplification flagged in docs/features/done/bot_play_styles.md.
 int hangingPieceValueAfter(String fen, String uci) {
   final chess = chess_lib.Chess();
   chess.load(fen);

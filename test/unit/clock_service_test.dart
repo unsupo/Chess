@@ -1,5 +1,5 @@
 // Isolated coverage for ClockService — see
-// docs/features/refactor_05_game_notifier_facade.md. Previously the
+// docs/features/done/refactor_05_game_notifier_facade.md. Previously the
 // `Timer` plumbing lived directly on `GameNotifier` and could only be
 // exercised indirectly (via `tickClock`/the public clock-related
 // GameState fields), with no way to test the timer mechanics (restart

@@ -1,5 +1,5 @@
 // Timer plumbing extracted out of `GameNotifier` — see
-// docs/features/refactor_05_game_notifier_facade.md. Deliberately dumb:
+// docs/features/done/refactor_05_game_notifier_facade.md. Deliberately dumb:
 // it only knows how to start/stop a periodic tick and report elapsed
 // time back via callback. The *meaning* of a tick (whose clock is
 // running, timeout detection, `GameState` updates) depends on

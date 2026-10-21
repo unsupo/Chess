@@ -16,7 +16,7 @@ const kBorderSubtle = Color(0xFF3A5A3A);
 /// Difficulty-tier label for a bot ELO. Shared by `BotPanel`,
 /// `ControlsPanel`, and `SidebarExpanded` — previously triplicated
 /// identically across all three during the phase-1 widget file split (see
-/// docs/features/refactor_01_widget_file_split.md), consolidated here.
+/// docs/features/done/refactor_01_widget_file_split.md), consolidated here.
 String eloLabel(int elo) {
   if (elo < 250) return 'Trying to Lose';
   if (elo < 700) return 'Very Easy';

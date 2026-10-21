@@ -1,5 +1,5 @@
 // The post-game eval cache extracted out of `GameNotifier` — see
-// docs/features/refactor_05_game_notifier_facade.md. Owns `_fenEvalCache`
+// docs/features/done/refactor_05_game_notifier_facade.md. Owns `_fenEvalCache`
 // and the engine calls needed to fill gaps in it.
 //
 // Deliberately does *not* own `GameNotifier._computeGameReview`'s two-phase

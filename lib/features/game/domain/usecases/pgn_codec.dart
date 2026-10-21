@@ -1,5 +1,5 @@
 // PGN serialization/parsing and FEN-diff-to-move lookup — see
-// docs/features/refactor_05_game_notifier_facade.md. Previously split
+// docs/features/done/refactor_05_game_notifier_facade.md. Previously split
 // across `GameState.pgn` (presentation) and several private statics on
 // `GameNotifier` (presentation): `_parsePgn`, `_findSanMove`,
 // `_findUciMove`, `_applyUciWithSan`.

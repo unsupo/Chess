@@ -2,7 +2,7 @@
 // style-scoring policies (fork/check/capture/queen-trade detection for
 // Aggressor & Trickster, hanging-piece detection for Defender). No Flutter,
 // no engine — just the `chess` package. See
-// docs/features/bot_play_styles.md.
+// docs/features/done/bot_play_styles.md.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:chess/chess.dart' as chess_lib;
 import 'package:chess_teacher/features/game/domain/entities/chess_move_analysis.dart';

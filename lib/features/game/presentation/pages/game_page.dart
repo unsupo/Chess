@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/widgets/chess_board/chess_board_widget.dart';
+import '../../domain/usecases/game_review_analyzer.dart';
 import '../providers/game_provider.dart';
 import '../widgets/bot_panel.dart';
 import '../widgets/controls_panel.dart';
@@ -26,6 +27,21 @@ const _sidePanelBreakpoint = 700.0;
 const _sidebarWidthExpanded = 280.0;
 const _sidebarWidthCollapsed = 56.0;
 
+/// The classification worth a board badge for, or `null` if there's no
+/// move yet or the move was unremarkable — same `good`/`book` exclusion
+/// `MoveHistoryAndFeedbackBar` already uses for its own per-move symbols,
+/// so the on-board badge and the move-strip badge never disagree about
+/// which moves are "notable".
+MoveClassification? _notableClassification(GameState state) {
+  final c = state.currentPlyClassification;
+  if (c == null ||
+      c == MoveClassification.good ||
+      c == MoveClassification.book) {
+    return null;
+  }
+  return c;
+}
+
 class GamePage extends ConsumerStatefulWidget {
   const GamePage({super.key});
 
@@ -37,7 +53,7 @@ class _GamePageState extends ConsumerState<GamePage> {
   final _boardKey = GlobalKey<ChessBoardWidgetState>();
 
   // Pure in-memory UI state for the side panel — no persistence, always
-  // starts expanded (see docs/features/controls_side_panel.md).
+  // starts expanded (see docs/features/done/controls_side_panel.md).
   bool _sidebarCollapsed = false;
 
   // Optional custom board size set via the drag-to-resize handle.
@@ -418,6 +434,8 @@ class _GamePageState extends ConsumerState<GamePage> {
               (_customBoardSize ?? maxBoardSize).clamp(96.0, maxBoardSize),
             );
 
+            final notableClassification = _notableClassification(state);
+
             final boardWidget = ChessBoardWidget(
               key: _boardKey,
               fen: state.displayedFen,
@@ -432,6 +450,13 @@ class _GamePageState extends ConsumerState<GamePage> {
                   : ChessBoardOrientation.white,
               lastMoveFrom: state.displayedLastMoveFrom,
               lastMoveTo: state.displayedLastMoveTo,
+              badgeSquare: notableClassification != null
+                  ? state.displayedLastMoveTo
+                  : null,
+              badgeSymbol: notableClassification?.symbol,
+              badgeColor: notableClassification != null
+                  ? classificationColor(notableClassification)
+                  : null,
               onMove: (from, to, {promotion}) {
                 final chess = ch.Chess();
                 chess.load(state.displayedFen);

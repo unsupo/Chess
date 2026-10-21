@@ -37,7 +37,11 @@ class _FakeEngine extends ChessEngineRepository {
 }
 
 GameNotifier _makeNotifier(ChessEngineRepository engine) {
-  return GameNotifier(engine, AttemptMoveUseCase(engine));
+  return GameNotifier(
+    engine,
+    AttemptMoveUseCase(engine),
+    enableBotDelay: false,
+  );
 }
 
 void main() {

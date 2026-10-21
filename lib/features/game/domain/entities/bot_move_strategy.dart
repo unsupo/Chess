@@ -1,5 +1,5 @@
 // Unified personality move-selection strategy — see
-// docs/features/refactor_03_bot_strategy_pattern.md. Replaces dispatching
+// docs/features/done/refactor_03_bot_strategy_pattern.md. Replaces dispatching
 // on `state.personality.id` inline in `GameNotifier._pickBotMove` with one
 // registry lookup; each personality's actual move-picking logic still lives
 // where it always has (ScholarsMateHunterPolicy, PawnPusherPolicy,
@@ -18,7 +18,7 @@ import 'chess_opening.dart';
 /// `multiPv: 6` — not just different scoring over the same candidates.
 ///
 /// `personalityId`/`ply`/`selectedOpening`/`mateSafetyEnabled`/`mateSafetyN`
-/// were added in docs/features/refactor_04_bot_move_pipeline.md — they're
+/// were added in docs/features/done/refactor_04_bot_move_pipeline.md — they're
 /// not needed by the per-personality strategies above, only by the
 /// pipeline steps and decorator in `bot_move_pipeline.dart`, but living on
 /// the one context object `GameNotifier` already builds per bot turn is

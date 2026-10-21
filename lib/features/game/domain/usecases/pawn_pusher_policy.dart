@@ -252,7 +252,7 @@ class PawnPusherPolicy {
   /// `hangingPieceValueAfter` (general hanging-value-after-a-hypothetical-move
   /// check) — this one is scoped to non-pawn pieces on the *current* board,
   /// with no hypothetical move involved. See
-  /// docs/features/refactor_02_shared_chess_helpers.md for why these stay
+  /// docs/features/done/refactor_02_shared_chess_helpers.md for why these stay
   /// separate functions rather than being merged.
   static bool _hasHangingNonPawnPiece(chess_lib.Chess currentChess) {
     final us = currentChess.turn;

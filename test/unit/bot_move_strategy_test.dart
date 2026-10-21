@@ -5,7 +5,7 @@
 // short-circuits correctly on immediate/forced mate, records eval for the
 // game-review cache, and falls back correctly. Previously only reachable
 // indirectly through GameNotifier — net-new isolated coverage added as
-// part of docs/features/refactor_03_bot_strategy_pattern.md.
+// part of docs/features/done/refactor_03_bot_strategy_pattern.md.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:chess_teacher/features/game/domain/entities/bot_move_strategy.dart';
 import 'package:chess_teacher/features/game/domain/repositories/chess_engine_repository.dart';

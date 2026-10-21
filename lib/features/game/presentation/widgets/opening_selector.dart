@@ -5,7 +5,7 @@ import 'game_theme.dart';
 /// Dropdown to pick an opening to practice ("None" for free play). Picking
 /// one (including re-picking the active one) starts a fresh game and
 /// enforces that line for both sides until it runs out — see
-/// docs/features/opening_book_follower.md.
+/// docs/features/done/opening_book_follower.md.
 class OpeningSelector extends StatelessWidget {
   final ChessOpening? selected;
   final ValueChanged<ChessOpening?> onChanged;

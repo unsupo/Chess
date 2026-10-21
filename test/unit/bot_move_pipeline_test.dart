@@ -1,6 +1,6 @@
 // Tests for the Chain of Responsibility (opening book -> weak play ->
 // personality strategy) and the mate-safety Decorator that wraps it — see
-// docs/features/refactor_04_bot_move_pipeline.md. These were previously
+// docs/features/done/refactor_04_bot_move_pipeline.md. These were previously
 // only reachable indirectly through GameNotifier, with no isolated
 // coverage of the ordering or of the weak-play branches specifically
 // (GameNotifier's own Random field couldn't be seeded from outside it).

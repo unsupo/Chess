@@ -1,6 +1,7 @@
 import 'dart:developer' as developer;
 import 'dart:math' show Random;
-import 'package:flutter/foundation.dart' show kReleaseMode;
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb, kReleaseMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:chess/chess.dart' as chess_lib;
@@ -506,15 +507,23 @@ final gameProvider = StateNotifierProvider<GameNotifier, GameState>((ref) {
   );
 });
 
+bool get isFlutterTest =>
+    !kIsWeb && Platform.environment['FLUTTER_TEST'] == 'true';
+
 class GameNotifier extends StateNotifier<GameState> {
   final ChessEngineRepository _engine;
   final AttemptMoveUseCase _attemptMove;
   final ClockService _clockService = ClockService();
   final GameReviewService _gameReviewService;
+  final bool enableBotDelay;
 
-  GameNotifier(this._engine, this._attemptMove)
-    : _gameReviewService = GameReviewService(_engine),
-      super(
+  GameNotifier(
+    this._engine,
+    this._attemptMove, {
+    bool? enableBotDelay,
+  }) : enableBotDelay = enableBotDelay ?? !isFlutterTest,
+       _gameReviewService = GameReviewService(_engine),
+       super(
         GameState(
           fen: chess_lib.Chess().fen,
           evalByFenKey: {
@@ -575,7 +584,7 @@ class GameNotifier extends StateNotifier<GameState> {
 
   /// Builds the context one bot turn needs for
   /// `MateSafetyDecorator(kDefaultBotMovePipeline).selectMove(ctx)` — see
-  /// docs/features/refactor_04_bot_move_pipeline.md.
+  /// docs/features/done/refactor_04_bot_move_pipeline.md.
   BotMoveContext _botMoveContext(String fen, int elo) => BotMoveContext(
     fen: fen,
     elo: elo,
@@ -620,7 +629,7 @@ class GameNotifier extends StateNotifier<GameState> {
   }
 
   /// Picks an opening to practice (or `null` for free play) and always
-  /// starts a fresh game — see docs/features/opening_book_follower.md for
+  /// starts a fresh game — see docs/features/done/opening_book_follower.md for
   /// why re-picking mid-game isn't supported. `newGame()` carries
   /// `selectedOpening` through, so it must be set first.
   Future<void> setOpening(ChessOpening? opening) async {
@@ -991,13 +1000,23 @@ class GameNotifier extends StateNotifier<GameState> {
 
       // 2. Accepted — lock in user move (branching from currentPly if we were
       // viewing history with lockHistory == false), then get bot reply.
-      final userSan = PgnCodec.findMove(preMoveFen, newFen)?.san;
+      final userMove = PgnCodec.findMove(preMoveFen, newFen);
+      final userSan = userMove?.san;
+      final userUci = userMove?.uci;
+      final userFrom = userUci != null && userUci.length >= 4
+          ? userUci.substring(0, 2)
+          : null;
+      final userTo = userUci != null && userUci.length >= 4
+          ? userUci.substring(2, 4)
+          : null;
       final incMs = state.timeControl.isTimed
           ? state.timeControl.incrementMs
           : 0;
       state = state.copyWith(
         fen: newFen,
         sanMoves: userSan != null ? [...baseMoves, userSan] : baseMoves,
+        lastMoveFrom: userFrom,
+        lastMoveTo: userTo,
         whiteTimeMs: userMovedWhite
             ? state.whiteTimeMs + incMs
             : state.whiteTimeMs,
@@ -1006,7 +1025,6 @@ class GameNotifier extends StateNotifier<GameState> {
             : state.blackTimeMs,
         evalByFenKey: _gameReviewService.evalByFenKey,
         clearViewPly: true,
-        clearLastMove: true,
         clearGameReview: true,
       );
       _syncClockTimer();
@@ -1038,6 +1056,14 @@ class GameNotifier extends StateNotifier<GameState> {
   Future<void> _playBotReply(String fen) async {
     state = state.copyWith(isEvaluating: true, clearError: true);
     try {
+      // Natural humanized bot thinking delay (300ms - 650ms) to allow the player's
+      // piece animation to finish settling and feel like a real opponent.
+      if (enableBotDelay) {
+        final botDelayMs = 300 + _random.nextInt(350);
+        await Future.delayed(Duration(milliseconds: botDelayMs));
+        if (!mounted) return;
+      }
+
       final preBotParts = fen.split(RegExp(r'\s+'));
       final botMovedWhite = preBotParts.length < 2 || preBotParts[1] != 'b';
       final ctx = _botMoveContext(fen, state.botElo);

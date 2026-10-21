@@ -1,5 +1,5 @@
 /// A named opening line the player can choose to practice — see
-/// docs/features/opening_book_follower.md. `uciMoves` is the scripted
+/// docs/features/done/opening_book_follower.md. `uciMoves` is the scripted
 /// book sequence (standard textbook theory, ~6-8 plies) in UCI notation,
 /// starting from the standard starting position.
 class ChessOpening {

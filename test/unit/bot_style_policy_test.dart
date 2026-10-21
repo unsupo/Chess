@@ -3,7 +3,7 @@
 // ScholarsMateHunterPolicy, Pawn Pusher -> PawnPusherPolicy). No Flutter,
 // no engine — candidates are hand-fabricated EngineMoveCandidate lists
 // standing in for what a MultiPV search would return. See
-// docs/features/bot_play_styles.md for the scoring formulas under test.
+// docs/features/done/bot_play_styles.md for the scoring formulas under test.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:chess_teacher/features/game/domain/entities/bot_move_strategy.dart';
 import 'package:chess_teacher/features/game/domain/entities/bot_style_policy.dart';
@@ -110,7 +110,7 @@ void main() {
 
   // Registry lookup moved to bot_move_strategy.dart as part of unifying
   // every personality's move selection under one BotMoveStrategy interface
-  // — see docs/features/refactor_03_bot_strategy_pattern.md. Kept here
+  // — see docs/features/done/refactor_03_bot_strategy_pattern.md. Kept here
   // since it's still exercising these two classes' identity.
   group('strategyForPersonalityId', () {
     test(

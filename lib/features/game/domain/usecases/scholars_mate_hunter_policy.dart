@@ -735,7 +735,7 @@ class ScholarsMateHunterPolicy {
   /// Deliberately distinct from `chess_move_analysis.dart`'s
   /// `hangingPieceValueAfter` (general hanging-value-after-a-move check) —
   /// this is narrower (queen-only) and also covers mate-in-1, which that
-  /// function doesn't. See docs/features/refactor_02_shared_chess_helpers.md
+  /// function doesn't. See docs/features/done/refactor_02_shared_chess_helpers.md
   /// for why these stay separate functions rather than being merged.
   static bool _hangsQueenOrAllowsMate(String fen, String uci) {
     final chess = chess_lib.Chess()..load(fen);
