@@ -59,3 +59,14 @@ package-lock.json
 .claude/worktrees/
 .claude/settings.local.json
 
+# Vendored Dart/Flutter skills (dart-lang/skills, pinned in
+# skills-lock.json) — CLAUDE.md documents keeping these two copies
+# identical in git, but excluding them here per request; re-fetchable
+# from skills-lock.json's recorded hashes if needed later.
+.claude/skills/
+.agents/skills/
+
+# One-off scratch dumps (e.g. chunked text dumps for LLM processing) —
+# never source, never meant to be committed.
+lib_prompt_chunks_*/
+
