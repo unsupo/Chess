@@ -1,6 +1,13 @@
 # Feature: Captured Pieces & Material Imbalance Row
 
-**Status:** Extracted / Planned — reverse-engineered from Chess.com's `captured-pieces` (`OR`) component.
+**Status:** Built — this doc's own "Extracted / Planned" was stale.
+`SideMaterial`/`GameState.materialFor` (`lib/features/game/presentation/providers/game_provider.dart`)
+implement exactly the captured-pieces + imbalance-badge math described
+below, and are rendered inline inside
+`lib/features/game/presentation/widgets/player_bar.dart` (`material.capturedPieces`) —
+there's no dedicated `CapturedPiecesRow` widget as §"Proposed Flutter
+Implementation" suggested; the rendering was folded directly into the
+existing player-bar widget instead of being factored out separately.
 
 ## Overview
 
@@ -26,6 +33,16 @@ Zk = {
 };
 ```
 - Note that while Bishops and Knights are both worth 3 points in material calculation, Chess.com sorts captured piece sprites in the order: **Pawn (`1`) → Bishop (`2`) → Knight (`3`) → Rook (`4`) → Queen (`5`)**.
+- **Our actual Flutter order is the reverse of this**: `materialFor`'s
+  capture loop iterates `['q', 'r', 'b', 'n', 'p']` — Queen, Rook, Bishop,
+  Knight, Pawn — and `player_bar.dart` renders `capturedPieces` in
+  whatever order the list was built, so highest-value-first, not
+  lowest-value-first like Chess.com. Nobody has asked for this to match
+  Chess.com's order; flagging it here only so this doc doesn't mislead
+  about which order to expect on screen.
+- **Pawn-pair grouping is not implemented.** Every captured piece —
+  pawns included — renders as its own individual icon in a plain `Wrap`;
+  there's no `CR`-style splitting of pawns into groups of 2.
 
 ### 2. Sprite Class Generation (`TR`, `wR`, `CR`, `SR`)
 ```js

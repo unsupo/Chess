@@ -1,15 +1,26 @@
 # Feature: Live Evaluation Pill, Move Classification Feedback, ECO Openings & SAN Move List
 
-**Status:** Built (with full CSS module token & deep-analysis constant reference extracted from Chess.com's `play-computer` bundle).
+**Status:** Something in this functional area is Built, but **none of the
+symbol names below ever existed in this codebase** — `MoveFeedbackType`,
+`MoveRecord`, `_classifyCpLoss`, `_detectOpening`, `EvalScorePillWidget`,
+`OpeningHeaderWidget`, `MoveFeedbackBanner`, and `SanMoveListStrip` all
+return zero matches in `lib/`. The real, working equivalent was built
+under completely different names — see "Actual Flutter Implementation"
+below. Keeping the Chess.com reverse-engineering sections (1-4) as
+reference material; just correcting what to actually go read in this repo.
 
 ## Overview
 
 Reverse-engineered from Chess.com's `evaluation-lines` (`Q`), `move-feedback-row` (`Bx`), `quick-analysis-tallies` (`XE`), `eco-opening-panel` (`Jk`), and `move-san` (`eS`) components. Surfaces real-time engine evaluation scores, move quality badges (from Brilliant to Blunder), live opening recognition, and interactive SAN move history chips.
 
-## Key Files in Flutter App
+## Actual Flutter Implementation
 
-- [`lib/features/game/presentation/providers/game_provider.dart`](../../lib/features/game/presentation/providers/game_provider.dart) — `MoveFeedbackType`, `MoveRecord`, `_classifyCpLoss`, `_detectOpening`
-- [`lib/features/game/presentation/widgets/chess_feature_widgets.dart`](../../lib/features/game/presentation/widgets/chess_feature_widgets.dart) — `EvalScorePillWidget`, `OpeningHeaderWidget`, `MoveFeedbackBanner`, `SanMoveListStrip`
+- [`lib/features/game/domain/usecases/game_review_analyzer.dart`](../../lib/features/game/domain/usecases/game_review_analyzer.dart):
+  - `MoveClassification` enum — 8 tiers (`brilliant !!`, `great !`, `best ★`, `book 📖`, `good ✓`, `inaccuracy ?!`, `mistake ?`, `blunder ??`), each carrying its own `symbol`/`label`. `GameReviewAnalyzer.classifyMove` assigns one per ply from `cpl`/`cpGain`/`winLoss`/mate/check — different thresholds than Chess.com's `XE` tiers below (no `greatfind`/`excellent`/`forced`/`missedwin` distinction; "Great" also covers Chess.com's `greatfind`).
+  - `GameReviewAnalyzer.analyze` — the actual post-game accuracy/ACPL/estimated-ELO computation (not an eval *pill*; feeds `GameReviewSummary`, `docs/features/chesscom_reference/game_over_modal_and_game_review_narratives.md`-adjacent but likewise not built against that doc).
+  - `OpeningBookClassifier.detectOpeningName`/`isBookPly` — a ~40-entry hardcoded opening table (not ECO-coded), matched against the game's own SAN move list prefix. This is the real "opening recognition"; there's no `eco-opening-panel` equivalent fetching ECO codes from a database.
+- [`lib/features/game/presentation/widgets/move_history_feedback_bar.dart`](../../lib/features/game/presentation/widgets/move_history_feedback_bar.dart) — `MoveHistoryAndFeedbackBar` (the SAN move-chip strip + classification badges), `classificationColor(MoveClassification)`. Moved here from the old monolithic `chess_feature_widgets.dart` by the Phase 1 widget-file-split refactor (`docs/features/done/refactor_01_widget_file_split.md`).
+- [`lib/features/game/presentation/widgets/eval_bar_and_graph.dart`](../../lib/features/game/presentation/widgets/eval_bar_and_graph.dart) — `EvalBar`/`EvalGraph` are the live-eval display; see `docs/features/done/move_timeline_eval_bar.md` for that feature's own doc (it's the one actually built against this file).
 
 ## Reverse-Engineered Mechanics
 

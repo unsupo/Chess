@@ -1,6 +1,14 @@
 # Feature: Bot Categories, 3-Crown Progress, Play-Side Selector & Odds/Handicap Games
 
-**Status:** Play-Side Selector, Bot Categories, and 3-Crown display are **Built**. Live Bot Events, Odds/Handicap FENs, and Ambient Bot Audio are **Extracted / Reference**.
+**Status:** Play-Side Selector and 3-Crown display are **Built**, but
+simpler than this doc originally claimed — see the corrections inline
+below. "Bot Categories" as a dedicated `BotCategory` type was never
+built: `BotPersonality.category` is a plain `String` field (`'Beginner'`,
+`'Intermediate'`, `'Advanced'`, `'Master'`), not an enum/class, and there
+is no `defaultCroissantBots`. Live Bot Events, Odds/Handicap FENs, and
+Ambient Bot Audio remain **Extracted / Reference** only — confirmed no
+`oddsGameVariation`/`gameplayAmbient`/ambient-audio code exists anywhere
+in `lib/`.
 
 ## Overview
 
@@ -8,9 +16,9 @@ Reverse-engineered from Chess.com's `play-side-selector` (`hy`), `bot-group-acco
 
 ## Key Files in Flutter App
 
-- [`lib/features/game/domain/entities/bot_personality.dart`](../../lib/features/game/domain/entities/bot_personality.dart) — `BotCategory` and `defaultCroissantBots`
-- [`lib/features/game/presentation/providers/game_provider.dart`](../../lib/features/game/presentation/providers/game_provider.dart) — `PlaySide` (`white`, `random`, `black`), `botCrowns`, and `selectPlaySide`
-- [`lib/features/game/presentation/widgets/chess_feature_widgets.dart`](../../lib/features/game/presentation/widgets/chess_feature_widgets.dart) — `PlaySideSelectorWidget`, `BotCrownsWidget`
+- [`lib/features/game/domain/entities/bot_personality.dart`](../../lib/features/game/domain/entities/bot_personality.dart) — `BotPersonality.category` (a plain `String`, not a `BotCategory` type — see `docs/features/done/personalities.md` for the real roster)
+- [`lib/features/game/presentation/providers/game_provider.dart`](../../lib/features/game/presentation/providers/game_provider.dart) — `PlaySide` (`white`, `random`, `black`), `botCrowns`, and `setPlaySide` (not `selectPlaySide`)
+- [`lib/features/game/presentation/widgets/bot_crowns_and_selectors.dart`](../../lib/features/game/presentation/widgets/bot_crowns_and_selectors.dart) — `PlaySideSelectorWidget`, `BotCrownsWidget` (moved out of the old monolithic `chess_feature_widgets.dart` by the Phase 1 widget-file-split refactor, `docs/features/done/refactor_01_widget_file_split.md`)
 
 ## Reverse-Engineered Mechanics
 
@@ -19,10 +27,16 @@ Reverse-engineered from Chess.com's `play-side-selector` (`hy`), `bot-group-acco
 - When Random is selected, `RO()` (`Math.floor(Math.random() * 2 + 1)`) picks White or Black at game start, flips the board orientation accordingly, and if the user is Black, immediately triggers the bot's opening move (`_playBotReply()`).
 
 ### 2. Bot Crowns (`bot-crowns` / `ZA`) & Assistance Levels
-- Each bot displays up to **3 crowns** (`BotCrownsWidget`) representing how little assistance was used when defeating the bot:
-  - **3 Crowns:** Won with Anti-Blunder Shield OFF (no takebacks/assistance).
-  - **2 Crowns:** Won with Anti-Blunder Shield ON (assisted play).
-  - **0 Crowns:** Not yet defeated.
+- Chess.com's real mechanic (hint/undo counts) doesn't apply here — this
+  app has no hints or undos. The actual criteria in
+  `GameNotifier._awardCrownsIfHumanWon`, keyed off the two assistance
+  toggles this app *does* have (Anti-Blunder Shield, Mate Safety):
+  - **3 Crowns:** Won with **both** Anti-Blunder Shield and Mate Safety OFF.
+  - **2 Crowns:** Won with Anti-Blunder Shield ON but Mate Safety OFF.
+  - **1 Crown:** Won with Mate Safety ON (regardless of Anti-Blunder Shield).
+  - **0 Crowns:** Not yet defeated at a tier higher than already earned
+    (`crownsForBot` only ever upgrades, never downgrades, a personality's
+    crown count).
 
 ### 3. Engine Skill Tier Rating Mapper (`ab(e)`)
 ```js

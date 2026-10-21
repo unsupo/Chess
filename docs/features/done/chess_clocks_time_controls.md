@@ -9,8 +9,8 @@ Reverse-engineered from Chess.com's `MoveTime` (`WR`), `TickerIcon` (`RR`), time
 ## Key Files in Flutter App
 
 - [`lib/features/game/domain/entities/time_control.dart`](../../lib/features/game/domain/entities/time_control.dart) — `TimeControl`, `TimeCategory`, `BO`/`WO`/`MO` equivalents
-- [`lib/features/game/presentation/widgets/chess_feature_widgets.dart`](../../lib/features/game/presentation/widgets/chess_feature_widgets.dart) — `MoveTimeWidget`, `TickerIconWidget`, `TimeControlSelectorButton`
-- [`lib/features/game/presentation/providers/game_provider.dart`](../../lib/features/game/presentation/providers/game_provider.dart) — 100ms decisecond timer (`_clockTimer`) and timeout game-over handling
+- [`lib/features/game/presentation/widgets/ticker_clock_widget.dart`](../../lib/features/game/presentation/widgets/ticker_clock_widget.dart) — `MoveTimeWidget`, `TickerIconWidget` (moved out of the old monolithic `chess_feature_widgets.dart` by the Phase 1 widget-file-split refactor, `docs/features/done/refactor_01_widget_file_split.md`). **`TimeControlSelectorButton` doesn't exist as a separate widget** — the time-control picker is real but built inline inside `controls_panel.dart`/`sidebar.dart`, not factored out.
+- [`lib/features/game/presentation/providers/clock_service.dart`](../../lib/features/game/presentation/providers/clock_service.dart) — owns the 100ms periodic `Timer` (extracted from `GameNotifier`'s private `_clockTimer` field by the Phase 5 Facade refactor, `docs/features/done/refactor_05_game_notifier_facade.md`); `GameNotifier.tickClock` still does the elapsed-time-to-state math and timeout game-over handling
 
 ## Reverse-Engineered Mechanics
 

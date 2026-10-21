@@ -2,12 +2,17 @@
 
 **Status:** Built. The move timeline (clickable SAN chips, step back/forward,
 `selectPly`/`currentPly`/`viewPly`) and per-move classification badges were
-already built independently (see `chess_feature_widgets.dart`'s
-`MoveHistoryAndFeedbackBar` and `GameReviewAnalyzer`). The togglable eval
-bar (`EvalBar`, `GameState.showEvalBar`) and the eval graph with key-move
-markers (`EvalGraph`, `GameState.plyWhiteCpHistory`) were added on top of
-that — see `lib/features/game/presentation/widgets/chess_feature_widgets.dart`
-and `GameNotifier.setShowEvalBar`.
+already built independently (see
+`lib/features/game/presentation/widgets/move_history_feedback_bar.dart`'s
+`MoveHistoryAndFeedbackBar` and `GameReviewAnalyzer` —
+`docs/features/done/move_feedback_eval_openings.md` has the real symbol names).
+The togglable eval bar (`EvalBar`, `GameState.showEvalBar`) and the eval
+graph with key-move markers (`EvalGraph`, `GameState.plyWhiteCpHistory`)
+were added on top of that — see
+`lib/features/game/presentation/widgets/eval_bar_and_graph.dart` and
+`GameNotifier.setShowEvalBar`. (Both widgets moved out of the old
+monolithic `chess_feature_widgets.dart` into their own files by the
+Phase 1 widget-file-split refactor, `docs/features/done/refactor_01_widget_file_split.md`.)
 
 ## Problem
 
@@ -46,7 +51,7 @@ class GameHistoryEntry {
 
 Every accepted human move and every bot move appends one entry (both in
 `onUserMove`/`_playBotReply`, which already exist — see
-`docs/features/anti_blunder.md` for the current flow). `newGame()` /
+`docs/features/done/anti_blunder.md` for the current flow). `newGame()` /
 `loadFen()` reset `history` to empty (loading a FEN starts a fresh
 timeline from that position, same as starting a fresh game from the
 standard position — there's nothing before it to show).
@@ -67,7 +72,7 @@ extra search needed, the number was already being computed.
 The human's move already has an eval too — `AttemptMoveUseCase.execute`
 already computes `evaluateFen(newFen)` as part of the blunder check (see
 `anti_blunder.md`'s flow diagram); when anti-blunder is *disabled*
-(`docs/features/anti_blunder.md`'s toggle) there's currently no
+(`docs/features/done/anti_blunder.md`'s toggle) there's currently no
 evaluation at all, so a human move's history entry would need its own
 `evaluateFen` call in that case specifically — the one real added cost,
 and only when the user has turned blunder-checking off.
@@ -141,7 +146,7 @@ moves").
 
 This touches `GameState`/`GameNotifier` extensively (history tracking,
 the `getBestMove` return-type change) — the same file the in-flight
-bot-play-styles work (`docs/features/bot_play_styles.md`) is also
+bot-play-styles work (`docs/features/done/bot_play_styles.md`) is also
 editing in its own worktree. Building this should wait until that work
 is merged into main, to avoid three-way conflicts in
 `game_provider.dart`.

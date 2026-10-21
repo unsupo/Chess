@@ -212,7 +212,7 @@ that a move hangs a piece.
 `getBestMove` sets it (right before its own search) and restores it to
 20 (Stockfish's own default / full strength) immediately after. This
 means `evaluateFen` always runs at full strength — see
-`docs/features/engine.md` and `docs/features/anti_blunder.md`. Confirmed
+`docs/features/done/engine.md` and `docs/features/done/anti_blunder.md`. Confirmed
 by scripting an obvious queen-hanging blunder (`Qh5??` where `g6` pawn
 takes for free) at the default personality via the
 `ext.chess_teacher.makeUciMove` debug extension: rejected correctly after

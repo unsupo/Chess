@@ -4,9 +4,15 @@
 (`lib/features/game/domain/entities/chess_opening.dart`), `setOpening`
 always starts a fresh game, enforcement rejects off-book user moves
 (`GameNotifier.onUserMove`'s ply-0 check) and the bot also plays the book
-line on its own turns (`GameNotifier._pickBotMove`) so both sides rehearse
-the exact line. UI: `_OpeningSelector` dropdown in the sidebar and the
-narrow-viewport controls panel (not added to the collapsed icon rail,
+line on its own turns so both sides rehearse the exact line — originally
+via `GameNotifier._pickBotMove`, now via `OpeningBookStep` at the front of
+the bot-move pipeline (`docs/features/done/refactor_04_bot_move_pipeline.md`,
+same priority: still checked before weak play and the personality
+strategy). UI: `OpeningSelector` (public, its own file
+`lib/features/game/presentation/widgets/opening_selector.dart` — private
+`_OpeningSelector` before the Phase 1 widget-file-split refactor,
+`docs/features/done/refactor_01_widget_file_split.md`) in the sidebar and
+the narrow-viewport controls panel (not added to the collapsed icon rail,
 matching the existing precedent of `mateSafetyN` also being omitted
 there).
 
@@ -133,7 +139,7 @@ to extend book tracking indefinitely).
 
 ### UI
 
-A dropdown in the sidebar (`_SidebarExpanded`, `docs/features/controls_side_panel.md`'s
+A dropdown in the sidebar (`_SidebarExpanded`, `docs/features/done/controls_side_panel.md`'s
 sidebar), e.g. `DropdownButton<ChessOpening?>` with `kOpenings` plus a
 leading "None" entry, wired to `setOpening`. Needs a corresponding entry
 in the collapsed rail (an icon showing whether an opening is active, same
@@ -160,4 +166,4 @@ pattern as the anti-blunder toggle's rail icon) and in the narrow/bottom
 - `lib/features/game/domain/entities/chess_opening.dart` — new
 - `lib/features/game/presentation/providers/game_provider.dart` — `GameState.selectedOpening`, `setOpening`, `onUserMove` signature change + conformance check
 - `lib/features/game/presentation/pages/game_page.dart` — dropdown in sidebar + collapsed-rail indicator + narrow-layout `_ControlsPanel`, updated `onMove` callback
-- `docs/features/personalities.md` or a new doc section — n/a, this is independent of personalities
+- `docs/features/done/personalities.md` or a new doc section — n/a, this is independent of personalities

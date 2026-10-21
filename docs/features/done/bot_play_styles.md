@@ -1,7 +1,7 @@
 # Feature: Personality-Driven Play Styles
 
 **Status:** Built. Aggressor ended up with its own dedicated policy
-(`ScholarsMateHunterPolicy`, `docs/features/scholars_mate_hunter.md` —
+(`ScholarsMateHunterPolicy`, `docs/features/done/scholars_mate_hunter.md` —
 a more thorough mate-hunting/opening-trap implementation than the simple
 scorer originally sketched below) instead of the generic
 `BotStylePolicy` mechanism. Trickster and Defender were built as
@@ -9,7 +9,7 @@ originally planned here, via `bot_style_policy.dart`.
 
 ## Problem
 
-Personalities (`docs/features/personalities.md`) currently only differ by
+Personalities (`docs/features/done/personalities.md`) currently only differ by
 flavor text and `defaultElo` — every personality plays through the exact
 same path, `ChessEngineRepository.getBestMove(fen)`, which just returns
 Stockfish's single best move at the configured skill level. "The
@@ -115,7 +115,7 @@ helper tracking move count, not in the engine repository.
 The simple scorer originally sketched here (mate bonus + capture value +
 check bonus - queen-trade penalty) was superseded during implementation
 by a more thorough, dedicated policy — see
-`docs/features/scholars_mate_hunter.md`. That policy covers the same
+`docs/features/done/scholars_mate_hunter.md`. That policy covers the same
 ground (rush the mate, grab material, avoid trading queens, scripted
 Wayward Queen Attack / Scholar's Mate opening, keep pressing mating
 nets) plus immediate mate-in-1/forced mate-in-2 detection and a richer
@@ -201,7 +201,7 @@ later.
 - `MultiPV` search is somewat more expensive than single-PV; reuse the
   existing `movetimeMs` budget (don't add extra sequential searches) so
   this doesn't blow past the existing `getBestMove` timeout
-  (`movetimeMs + 4000ms`, see `docs/features/engine.md`).
+  (`movetimeMs + 4000ms`, see `docs/features/done/engine.md`).
 - `_handleUciOutput` needs restructuring to track per-`multipv`-index
   candidates instead of one `_latestScore` — a real change to
   `native_engine_repository.dart`'s parsing, not just additive.
@@ -217,4 +217,4 @@ later.
 - `lib/features/game/domain/entities/bot_style_policy.dart` — new
 - `lib/features/game/domain/entities/bot_personality.dart` — new Defender entry, optional policy reference
 - `lib/features/game/presentation/providers/game_provider.dart` — bot-reply branch + scripted-opening tracking
-- `docs/features/personalities.md` — update once built (new Defender row, note which personalities have a style policy)
+- `docs/features/done/personalities.md` — update once built (new Defender row, note which personalities have a style policy)

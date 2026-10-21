@@ -1,5 +1,15 @@
 # Evaluation Bar: Centipawn, WDL Probability & Complexity Modes
 
+**Status:** Not built — this is Chess.com reference material only. The
+real `EvalBar` (`lib/features/game/presentation/widgets/eval_bar_and_graph.dart`,
+`docs/features/done/move_timeline_eval_bar.md`) uses a different formula than
+§5's blueprint below: a win-probability sigmoid
+(`GameReviewAnalyzer.winPercentFromWhiteCp`), not the `SCORE_CAP = 4` /
+`50 ± 45%` linear mapping. There is no WDL bar, no complexity bar, and no
+tap-to-toggle-mode — confirmed via `grep -rln "wdl\|complexity"
+lib/features/game/presentation/` returning no matches. §5's "Flutter
+Implementation Blueprint" was never acted on.
+
 Extracted from Chess.com's `play-computer` (`evaluation-bar.b2490faa.Dr9JiXampD.chunk.js`) and `analysis` (`evaluation-bar.b2490faa.CQzut5s1Dc.chunk.js`, `shared.36dcc507.CzVEG7o6cj.chunk.js`, and `evaluation-bar.Dw4H_kZZAR.css`) bundles.
 
 ---
