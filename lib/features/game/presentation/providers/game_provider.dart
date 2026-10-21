@@ -1,4 +1,3 @@
-import 'dart:async' show Timer;
 import 'dart:developer' as developer;
 import 'dart:math' show Random;
 import 'package:flutter/foundation.dart' show kReleaseMode;
@@ -16,7 +15,10 @@ import '../../domain/entities/time_control.dart';
 import '../../domain/repositories/chess_engine_repository.dart';
 import '../../domain/usecases/attempt_move_usecase.dart';
 import '../../domain/usecases/game_review_analyzer.dart';
+import '../../domain/usecases/pgn_codec.dart';
 import '../../domain/usecases/scholars_mate_hunter_policy.dart';
+import 'clock_service.dart';
+import 'game_review_service.dart';
 
 export '../../domain/entities/chess_opening.dart';
 export '../../domain/entities/time_control.dart';
@@ -363,60 +365,18 @@ class GameState {
   }
 
   /// Full PGN string including standard tag headers and move list.
-  String get pgn {
-    final chess = _buildGameChess();
-    final String result;
-    if (timeoutWinner != null) {
-      result = timeoutWinner == 'white' ? '1-0' : '0-1';
-    } else if (chess.in_checkmate) {
-      result = chess.turn == chess_lib.Color.WHITE ? '0-1' : '1-0';
-    } else if (isDraw) {
-      result = '1/2-1/2';
-    } else {
-      result = '*';
-    }
-
-    final whiteName = boardFlipped ? '${personality.name} ($botElo)' : 'You';
-    final blackName = boardFlipped ? 'You' : '${personality.name} ($botElo)';
-
-    final headers = <String>[
-      '[Event "Anti-Blunder Chess"]',
-      '[Site "Local"]',
-      '[White "$whiteName"]',
-      '[Black "$blackName"]',
-      '[Result "$result"]',
-      if (timeControl.isTimed) '[TimeControl "${timeControl.key}"]',
-      if (initialFen != chess_lib.Chess.DEFAULT_POSITION) ...[
-        '[SetUp "1"]',
-        '[FEN "$initialFen"]',
-      ],
-    ];
-
-    final initTokens = initialFen.split(RegExp(r'\s+'));
-    var whiteToMove = initTokens.length > 1 ? initTokens[1] == 'w' : true;
-    var moveNumber =
-        (initTokens.length > 5 ? int.tryParse(initTokens[5]) : null) ?? 1;
-
-    final moveTokens = <String>[];
-    for (var i = 0; i < sanMoves.length; i++) {
-      final san = sanMoves[i];
-      if (whiteToMove) {
-        moveTokens.add('$moveNumber. $san');
-        whiteToMove = false;
-      } else {
-        if (i == 0) {
-          moveTokens.add('$moveNumber... $san');
-        } else {
-          moveTokens.add(san);
-        }
-        moveNumber++;
-        whiteToMove = true;
-      }
-    }
-    moveTokens.add(result);
-
-    return '${headers.join('\n')}\n\n${moveTokens.join(' ')}';
-  }
+  String get pgn => PgnCodec.toPgn(
+    initialFen: initialFen,
+    fen: fen,
+    sanMoves: sanMoves,
+    timeoutWinner: timeoutWinner,
+    isDraw: isDraw,
+    boardFlipped: boardFlipped,
+    personalityName: personality.name,
+    botElo: botElo,
+    isTimedControl: timeControl.isTimed,
+    timeControlKey: timeControl.key,
+  );
 
   /// Computes captured pieces and material score for White (`isWhite: true`)
   /// or Black (`isWhite: false`) from the currently displayed board position.
@@ -549,13 +509,12 @@ final gameProvider = StateNotifierProvider<GameNotifier, GameState>((ref) {
 class GameNotifier extends StateNotifier<GameState> {
   final ChessEngineRepository _engine;
   final AttemptMoveUseCase _attemptMove;
-  final Map<String, int> _fenEvalCache = {
-    GameReviewAnalyzer.fenKey(chess_lib.Chess.DEFAULT_POSITION): 20,
-  };
-  Timer? _clockTimer;
+  final ClockService _clockService = ClockService();
+  final GameReviewService _gameReviewService;
 
   GameNotifier(this._engine, this._attemptMove)
-    : super(
+    : _gameReviewService = GameReviewService(_engine),
+      super(
         GameState(
           fen: chess_lib.Chess().fen,
           evalByFenKey: {
@@ -569,8 +528,7 @@ class GameNotifier extends StateNotifier<GameState> {
 
   @override
   void dispose() {
-    _clockTimer?.cancel();
-    _clockTimer = null;
+    _clockService.dispose();
     super.dispose();
   }
 
@@ -628,7 +586,7 @@ class GameNotifier extends StateNotifier<GameState> {
     selectedOpening: state.selectedOpening,
     mateSafetyEnabled: state.mateSafetyEnabled,
     mateSafetyN: state.mateSafetyN,
-    recordEval: (f, cp) => _fenEvalCache[GameReviewAnalyzer.fenKey(f)] = cp,
+    recordEval: _gameReviewService.recordEval,
   );
 
   Future<void> setDifficulty(int elo) async {
@@ -675,8 +633,7 @@ class GameNotifier extends StateNotifier<GameState> {
 
   /// Sets the active time control and resets both players' clocks.
   void setTimeControl(TimeControl tc) {
-    _clockTimer?.cancel();
-    _clockTimer = null;
+    _clockService.stop();
     state = state.copyWith(
       timeControl: tc,
       whiteTimeMs: tc.initialTimeMs,
@@ -723,8 +680,7 @@ class GameNotifier extends StateNotifier<GameState> {
     if (state.isWhiteTurn) {
       final next = (state.whiteTimeMs - elapsedMs).clamp(0, 86400000);
       if (next <= 0) {
-        _clockTimer?.cancel();
-        _clockTimer = null;
+        _clockService.stop();
         state = state.copyWith(whiteTimeMs: 0, timeoutWinner: 'black');
         _awardCrownsIfHumanWon();
         _computeGameReview();
@@ -734,8 +690,7 @@ class GameNotifier extends StateNotifier<GameState> {
     } else {
       final next = (state.blackTimeMs - elapsedMs).clamp(0, 86400000);
       if (next <= 0) {
-        _clockTimer?.cancel();
-        _clockTimer = null;
+        _clockService.stop();
         state = state.copyWith(blackTimeMs: 0, timeoutWinner: 'white');
         _awardCrownsIfHumanWon();
         _computeGameReview();
@@ -746,17 +701,15 @@ class GameNotifier extends StateNotifier<GameState> {
   }
 
   void _syncClockTimer() {
-    _clockTimer?.cancel();
-    _clockTimer = null;
+    _clockService.stop();
     if (!state.timeControl.isTimed || state.isGameOver) return;
     if (state.sanMoves.isEmpty) return;
-    _clockTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
+    _clockService.start((elapsedMs) {
       if (!mounted) {
-        _clockTimer?.cancel();
-        _clockTimer = null;
+        _clockService.stop();
         return;
       }
-      tickClock(100);
+      tickClock(elapsedMs);
     });
   }
 
@@ -851,8 +804,7 @@ class GameNotifier extends StateNotifier<GameState> {
     if (trimmed == state.fen.trim() && state.sanMoves.isNotEmpty) {
       return true;
     }
-    _clockTimer?.cancel();
-    _clockTimer = null;
+    _clockService.stop();
     state = GameState(
       fen: trimmed,
       initialFen: trimmed,
@@ -868,7 +820,7 @@ class GameNotifier extends StateNotifier<GameState> {
       blackTimeMs: state.timeControl.initialTimeMs,
       playSide: state.playSide,
       botCrowns: state.botCrowns,
-      evalByFenKey: Map<String, int>.from(_fenEvalCache),
+      evalByFenKey: _gameReviewService.evalByFenKey,
       showEvalBar: state.showEvalBar,
     );
     if (state.isGameOver) {
@@ -885,11 +837,16 @@ class GameNotifier extends StateNotifier<GameState> {
     if (trimmed == state.pgn.trim() && state.sanMoves.isNotEmpty) {
       return true;
     }
-    final parsed = _parsePgn(trimmed);
+    final parsed = PgnCodec.parse(trimmed);
     if (parsed == null) return false;
-    final (initialFen, finalFen, sanMoves, lastFrom, lastTo) = parsed;
-    _clockTimer?.cancel();
-    _clockTimer = null;
+    final (
+      initialFen: initialFen,
+      finalFen: finalFen,
+      sanMoves: sanMoves,
+      lastFrom: lastFrom,
+      lastTo: lastTo,
+    ) = parsed;
+    _clockService.stop();
     state = GameState(
       fen: finalFen,
       initialFen: initialFen,
@@ -908,7 +865,7 @@ class GameNotifier extends StateNotifier<GameState> {
       blackTimeMs: state.timeControl.initialTimeMs,
       playSide: state.playSide,
       botCrowns: state.botCrowns,
-      evalByFenKey: Map<String, int>.from(_fenEvalCache),
+      evalByFenKey: _gameReviewService.evalByFenKey,
       showEvalBar: state.showEvalBar,
     );
     if (state.isGameOver) {
@@ -930,8 +887,7 @@ class GameNotifier extends StateNotifier<GameState> {
   }
 
   Future<void> newGame() async {
-    _clockTimer?.cancel();
-    _clockTimer = null;
+    _clockService.stop();
     final bool nextFlipped;
     switch (state.playSide) {
       case PlaySide.white:
@@ -955,7 +911,7 @@ class GameNotifier extends StateNotifier<GameState> {
       blackTimeMs: state.timeControl.initialTimeMs,
       playSide: state.playSide,
       botCrowns: state.botCrowns,
-      evalByFenKey: Map<String, int>.from(_fenEvalCache),
+      evalByFenKey: _gameReviewService.evalByFenKey,
       selectedOpening: state.selectedOpening,
       showEvalBar: state.showEvalBar,
     );
@@ -980,7 +936,7 @@ class GameNotifier extends StateNotifier<GameState> {
     // past the end of the stored line, enforcement silently stops applying.
     final opening = state.selectedOpening;
     if (opening != null && baseMoves.length < opening.uciMoves.length) {
-      final userUci = _findUciMove(preMoveFen, newFen);
+      final userUci = PgnCodec.findMove(preMoveFen, newFen)?.uci;
       if (userUci != opening.uciMoves[baseMoves.length]) {
         state = state.copyWith(
           fen: state.isViewingHistory ? state.fen : preMoveFen,
@@ -1010,12 +966,13 @@ class GameNotifier extends StateNotifier<GameState> {
           newFen: newFen,
         );
         if (_attemptMove.lastCurrentEval != null) {
-          _fenEvalCache[GameReviewAnalyzer.fenKey(preMoveFen)] =
-              _attemptMove.lastCurrentEval!;
+          _gameReviewService.recordEval(
+            preMoveFen,
+            _attemptMove.lastCurrentEval!,
+          );
         }
         if (_attemptMove.lastNewEval != null) {
-          _fenEvalCache[GameReviewAnalyzer.fenKey(newFen)] =
-              _attemptMove.lastNewEval!;
+          _gameReviewService.recordEval(newFen, _attemptMove.lastNewEval!);
         }
 
         if (result == MoveResult.blunder) {
@@ -1026,7 +983,7 @@ class GameNotifier extends StateNotifier<GameState> {
             undoRequested: true,
             errorMessage: 'Blunder! Find a better move.',
             clearLastMove: !state.isViewingHistory,
-            evalByFenKey: Map<String, int>.from(_fenEvalCache),
+            evalByFenKey: _gameReviewService.evalByFenKey,
           );
           return;
         }
@@ -1034,7 +991,7 @@ class GameNotifier extends StateNotifier<GameState> {
 
       // 2. Accepted — lock in user move (branching from currentPly if we were
       // viewing history with lockHistory == false), then get bot reply.
-      final userSan = _findSanMove(preMoveFen, newFen);
+      final userSan = PgnCodec.findMove(preMoveFen, newFen)?.san;
       final incMs = state.timeControl.isTimed
           ? state.timeControl.incrementMs
           : 0;
@@ -1047,15 +1004,14 @@ class GameNotifier extends StateNotifier<GameState> {
         blackTimeMs: !userMovedWhite
             ? state.blackTimeMs + incMs
             : state.blackTimeMs,
-        evalByFenKey: Map<String, int>.from(_fenEvalCache),
+        evalByFenKey: _gameReviewService.evalByFenKey,
         clearViewPly: true,
         clearLastMove: true,
         clearGameReview: true,
       );
       _syncClockTimer();
       if (state.isGameOver) {
-        _clockTimer?.cancel();
-        _clockTimer = null;
+        _clockService.stop();
         state = state.copyWith(isEvaluating: false);
         _awardCrownsIfHumanWon();
         _computeGameReview();
@@ -1094,7 +1050,7 @@ class GameNotifier extends StateNotifier<GameState> {
         return;
       }
 
-      final (afterBot, botSan) = _applyUciWithSan(fen, botUci);
+      final (afterBot, botSan) = PgnCodec.applyUciWithSan(fen, botUci);
       final incMs = state.timeControl.isTimed
           ? state.timeControl.incrementMs
           : 0;
@@ -1107,15 +1063,14 @@ class GameNotifier extends StateNotifier<GameState> {
         blackTimeMs: !botMovedWhite
             ? state.blackTimeMs + incMs
             : state.blackTimeMs,
-        evalByFenKey: Map<String, int>.from(_fenEvalCache),
+        evalByFenKey: _gameReviewService.evalByFenKey,
         isEvaluating: false,
         lastMoveFrom: botUci.substring(0, 2),
         lastMoveTo: botUci.substring(2, 4),
       );
       _syncClockTimer();
       if (state.isGameOver) {
-        _clockTimer?.cancel();
-        _clockTimer = null;
+        _clockService.stop();
         _awardCrownsIfHumanWon();
         _computeGameReview();
       }
@@ -1136,10 +1091,9 @@ class GameNotifier extends StateNotifier<GameState> {
     final snapBotElo = state.botElo;
     final snapHumanIsWhite = !state.boardFlipped;
 
-    final initialSummary = GameReviewAnalyzer.analyze(
+    final initialSummary = _gameReviewService.analyze(
       initialFen: snapInitialFen,
       sanMoves: snapSanMoves,
-      evalByFenKey: Map<String, int>.from(_fenEvalCache),
       botElo: snapBotElo,
       humanIsWhite: snapHumanIsWhite,
     );
@@ -1149,8 +1103,7 @@ class GameNotifier extends StateNotifier<GameState> {
     if (chess_lib.Chess.validate_fen(snapInitialFen)['valid'] == true &&
         chess.load(snapInitialFen)) {
       void checkFen(String f) {
-        final key = GameReviewAnalyzer.fenKey(f);
-        if (!_fenEvalCache.containsKey(key)) {
+        if (!_gameReviewService.containsEval(f)) {
           missingFens.add(f);
         }
       }
@@ -1168,7 +1121,7 @@ class GameNotifier extends StateNotifier<GameState> {
     if (missingFens.isEmpty) {
       state = state.copyWith(
         gameReview: initialSummary,
-        evalByFenKey: Map<String, int>.from(_fenEvalCache),
+        evalByFenKey: _gameReviewService.evalByFenKey,
         isAnalyzingGameReview: false,
       );
       return;
@@ -1176,29 +1129,25 @@ class GameNotifier extends StateNotifier<GameState> {
 
     state = state.copyWith(
       gameReview: initialSummary,
-      evalByFenKey: Map<String, int>.from(_fenEvalCache),
+      evalByFenKey: _gameReviewService.evalByFenKey,
       isAnalyzingGameReview: true,
     );
 
     try {
       for (final f in missingFens) {
         if (!mounted || state.sanMoves.length != snapSanMoves.length) return;
-        final key = GameReviewAnalyzer.fenKey(f);
-        if (_fenEvalCache.containsKey(key)) continue;
-        final score = await _engine.evaluateFen(f);
-        _fenEvalCache[key] = score;
+        await _gameReviewService.ensureEvaluated(f);
       }
       if (!mounted || state.sanMoves.length != snapSanMoves.length) return;
-      final refinedSummary = GameReviewAnalyzer.analyze(
+      final refinedSummary = _gameReviewService.analyze(
         initialFen: snapInitialFen,
         sanMoves: snapSanMoves,
-        evalByFenKey: Map<String, int>.from(_fenEvalCache),
         botElo: snapBotElo,
         humanIsWhite: snapHumanIsWhite,
       );
       state = state.copyWith(
         gameReview: refinedSummary,
-        evalByFenKey: Map<String, int>.from(_fenEvalCache),
+        evalByFenKey: _gameReviewService.evalByFenKey,
         isAnalyzingGameReview: false,
       );
     } catch (_) {
@@ -1210,142 +1159,5 @@ class GameNotifier extends StateNotifier<GameState> {
   /// Clears the undo signal after the board widget has handled it.
   void clearUndo() {
     state = state.copyWith(undoRequested: false);
-  }
-
-  // ── helpers ───────────────────────────────────────────────────────────────
-
-  /// Finds the SAN representation of the legal move that transitions
-  /// [fromFen] to [toFen], or `null` if no legal move matches.
-  static String? _findSanMove(String fromFen, String toFen) {
-    final chess = chess_lib.Chess()..load(fromFen);
-    final moves = chess.generate_moves();
-    String? boardMatchSan;
-    final toBoardPart = toFen.split(RegExp(r'\s+')).take(4).join(' ');
-    for (final move in moves) {
-      final san = chess.move_to_san(move);
-      chess.make_move(move);
-      final resultingFen = chess.fen;
-      chess.undo_move();
-      if (resultingFen == toFen) {
-        return san;
-      }
-      if (boardMatchSan == null &&
-          resultingFen.split(RegExp(r'\s+')).take(4).join(' ') == toBoardPart) {
-        boardMatchSan = san;
-      }
-    }
-    return boardMatchSan;
-  }
-
-  /// Same idea as `_findSanMove`, but returns the UCI form — used to check
-  /// a user's move against `selectedOpening`'s scripted line.
-  static String? _findUciMove(String fromFen, String toFen) {
-    final chess = chess_lib.Chess()..load(fromFen);
-    for (final move in chess.generate_moves()) {
-      final from = chess_lib.Chess.algebraic(move.from);
-      final to = chess_lib.Chess.algebraic(move.to);
-      final promo = move.promotion != null ? move.promotion!.name : '';
-      chess.make_move(move);
-      final resultingFen = chess.fen;
-      chess.undo_move();
-      if (resultingFen == toFen) {
-        return '$from$to$promo';
-      }
-    }
-    return null;
-  }
-
-  /// Applies a UCI move string to a FEN and returns the resulting FEN and SAN.
-  static (String, String?) _applyUciWithSan(String fen, String uci) {
-    final chess = chess_lib.Chess()..load(fen);
-    final moved = chess.move({
-      'from': uci.substring(0, 2),
-      'to': uci.substring(2, 4),
-      if (uci.length > 4) 'promotion': uci[4],
-    });
-    if (!moved) return (chess.fen, null);
-    final history = chess.getHistory();
-    final san = history.isNotEmpty ? history.last as String : null;
-    return (chess.fen, san);
-  }
-
-  /// Parses a PGN string (with or without headers) and returns
-  /// `(initialFen, finalFen, sanMoves, lastMoveFrom, lastMoveTo)` if valid,
-  /// or `null` if the PGN cannot be parsed or contains illegal moves.
-  static (String, String, List<String>, String?, String?)? _parsePgn(
-    String pgn,
-  ) {
-    final trimmed = pgn.trim();
-    if (trimmed.isEmpty) return null;
-
-    final headerRegex = RegExp(
-      r'^\s*\[([A-Za-z0-9_]+)\s+"([^"]*)"\]\s*$',
-      multiLine: true,
-    );
-    final headers = <String, String>{};
-    for (final match in headerRegex.allMatches(trimmed)) {
-      headers[match.group(1)!] = match.group(2)!;
-    }
-
-    var movetext = trimmed.replaceAll(headerRegex, ' ');
-    movetext = movetext.replaceAll(RegExp(r'\{[^}]*\}'), ' ');
-    movetext = movetext.replaceAll(RegExp(r';[^\r\n]*'), ' ');
-    final variationRegex = RegExp(r'\([^()]*\)');
-    while (variationRegex.hasMatch(movetext)) {
-      movetext = movetext.replaceAll(variationRegex, ' ');
-    }
-    movetext = movetext.replaceAll(RegExp(r'\$\d+'), ' ');
-    movetext = movetext.replaceAll(RegExp(r'\d+\.+'), ' ');
-
-    const results = {'1-0', '0-1', '1/2-1/2', '*'};
-    final tokens = movetext
-        .split(RegExp(r'\s+'))
-        .where((t) => t.isNotEmpty && !results.contains(t))
-        .toList();
-
-    if (headers.isEmpty && tokens.isEmpty) return null;
-
-    final chess = chess_lib.Chess();
-    var initialFen = chess_lib.Chess.DEFAULT_POSITION;
-    if (headers.containsKey('FEN')) {
-      final fenHeader = headers['FEN']!.trim();
-      if (chess_lib.Chess.validate_fen(fenHeader)['valid'] != true) {
-        return null;
-      }
-      if (!chess.load(fenHeader)) return null;
-      initialFen = fenHeader;
-    }
-
-    final sanMoves = <String>[];
-    String? lastFrom;
-    String? lastTo;
-
-    for (final rawToken in tokens) {
-      final cleanToken = rawToken
-          .replaceAll(RegExp(r'[+#?!]+$'), '')
-          .replaceAll('0', 'O');
-      chess_lib.Move? matchedMove;
-      String? matchedSan;
-      for (final m in chess.generate_moves()) {
-        final san = chess.move_to_san(m);
-        final cleanSan = san.replaceAll(RegExp(r'[+#?!]+$'), '');
-        final uci =
-            '${m.fromAlgebraic}${m.toAlgebraic}${m.promotion?.name ?? ''}';
-        if (san == rawToken || cleanSan == cleanToken || uci == rawToken) {
-          matchedMove = m;
-          matchedSan = san;
-          break;
-        }
-      }
-      if (matchedMove == null || matchedSan == null) {
-        return null;
-      }
-      sanMoves.add(matchedSan);
-      lastFrom = matchedMove.fromAlgebraic;
-      lastTo = matchedMove.toAlgebraic;
-      chess.make_move(matchedMove);
-    }
-
-    return (initialFen, chess.fen, sanMoves, lastFrom, lastTo);
   }
 }

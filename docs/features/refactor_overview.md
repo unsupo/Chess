@@ -1,7 +1,8 @@
 # Architecture Refactor: Overview & Phase Index
 
-**Status:** Planned — not built. Written to align on approach before
-implementation. See the audit this is based on in the session history;
+**Status:** Built — all 5 phases complete. See each phase's own doc for
+build notes and any deviations from its original sketch. See the audit
+this is based on in the session history;
 the short version: `game_page.dart` (2,329 lines) and `game_provider.dart`
 (1,605 lines) are God Objects absorbing every new feature, personality
 move-selection exists as three inconsistent shapes instead of one Strategy
@@ -31,7 +32,7 @@ it, never half-broken.
 | 2 | [refactor_02_shared_chess_helpers.md](refactor_02_shared_chess_helpers.md) | Consolidate duplicated `pieceValue`/`_moveToUci`/hanging-piece-detection into one module | Low-medium (must preserve exact behavior of 3 slightly different implementations) | — |
 | 3 | [refactor_03_bot_strategy_pattern.md](refactor_03_bot_strategy_pattern.md) | Unify `ScholarsMateHunterPolicy`/`PawnPusherPolicy`/`BotStylePolicy` under one `BotMoveStrategy` interface + registry | Medium | Phase 2 |
 | 4 | [refactor_04_bot_move_pipeline.md](refactor_04_bot_move_pipeline.md) | Turn `_pickBotMove`'s inlined sequence (opening book → weak play → personality → draw avoidance → mate safety) into an explicit Chain of Responsibility, with weak-play/mate-safety as Decorators | Medium | Phase 3 |
-| 5 | [refactor_05_game_notifier_facade.md](refactor_05_game_notifier_facade.md) | Extract `PgnCodec`, `ClockService`, `GameReviewService`, `BotMoveSelector` out of `GameNotifier`; `GameNotifier` becomes a thin Facade | High (touches the most call sites) | Phases 1-4 |
+| 5 | [refactor_05_game_notifier_facade.md](refactor_05_game_notifier_facade.md) | Extract `PgnCodec`, `ClockService`, `GameReviewService` out of `GameNotifier`; `GameNotifier` becomes a thin Facade | High (touches the most call sites) | Phases 1-4 |
 
 Phases 1 and 2 have no dependency on each other and could be done in
 either order or in parallel; 3, 4, 5 are strictly sequential (each

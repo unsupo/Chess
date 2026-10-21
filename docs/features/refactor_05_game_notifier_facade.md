@@ -1,10 +1,51 @@
 # Refactor Phase 5: `GameNotifier` as a Facade
 
-**Status:** Planned — not built. Part of
-[refactor_overview.md](refactor_overview.md), phase 5 (last, highest
-risk). Depends on phases 1-4 — bot move selection must already be
-extracted (phases 3-4) before this phase, since `_playBotReply` is one
-of the methods being thinned out here too.
+**Status:** Built, with three deliberate deviations from the sketch below
+— all behavior-preserving, not scope creep:
+
+1. **`PgnCodec.toPgn` takes primitive fields, not a `GameState`.** The
+   sketch's `static String toPgn(GameState state)` would have made a
+   `domain/` class depend on `GameState`, a presentation class (see
+   [architecture_backend_frontend_boundary.md](architecture_backend_frontend_boundary.md)'s
+   MVC mapping) — a backward dependency the rest of this refactor has
+   been careful to avoid (see phase 3's `BotMoveContext.engine` note,
+   which is the opposite case: a domain interface depending on another
+   domain interface, which *is* fine). `toPgn` instead takes
+   `initialFen`/`fen`/`sanMoves`/`timeoutWinner`/`isDraw`/`boardFlipped`/
+   `personalityName`/`botElo`/`isTimedControl`/`timeControlKey` and does
+   its own private board replay (mirroring `GameState._buildGameChess`,
+   which stays put — see "What's explicitly not moving" below) purely to
+   determine the checkmate winner for the result string. `GameState.pgn`
+   passes its own fields through; `PgnCodec` itself never imports
+   anything from `presentation/`.
+2. **`findMove` preserves two different strictness levels in one
+   traversal, not one merged behavior.** The old `_findSanMove` fell back
+   to a board-only match (ignoring halfmove-clock/en-passant-file
+   differences) when no exact FEN match existed; `_findUciMove` had no
+   such fallback — it was only ever used for the opening-book UCI
+   comparison, where a loosened match would have silently let an
+   off-book move through. A naive merge sharing one fallback would have
+   changed that. `findMove` returns `({String san, String? uci})?`: `uci`
+   is only non-null on an exact match, `san` additionally falls back to
+   the board-only match — exactly reproducing both old functions' call
+   sites' behavior from one shared `generate_moves()` loop.
+3. **`GameReviewService` doesn't own `_computeGameReview`'s orchestration.**
+   The sketch's `computeReview(...)` returning one `Future<GameReviewSummary>`
+   would have lost the real method's two-phase UX (an immediate
+   preliminary summary from whatever's already cached, refined
+   asynchronously as gaps are filled) — same reasoning phase 4 already
+   established for `ClockService` not owning `tickClock`'s elapsed-time
+   math. `GameReviewService` only owns the cache
+   (`recordEval`/`containsEval`/`evalByFenKey`), the single-FEN
+   `ensureEvaluated` operation, and an `analyze` passthrough to
+   `GameReviewAnalyzer`; the `state.copyWith(...)`/`mounted` orchestration
+   stays on `GameNotifier._computeGameReview`, now just calling through
+   to the service instead of touching `_fenEvalCache` directly.
+
+`ClockService`/`GameReviewService` are constructed internally as
+`GameNotifier` field initializers rather than injected constructor
+parameters — `GameNotifier(this._engine, this._attemptMove)`'s public
+signature is unchanged, so no existing test call site needed to change.
 
 ## Problem
 
