@@ -9,17 +9,30 @@ import '../repositories/chess_engine_repository.dart';
 import '../usecases/pawn_pusher_policy.dart';
 import '../usecases/scholars_mate_hunter_policy.dart';
 import 'bot_style_policy.dart';
+import 'chess_opening.dart';
 
 /// Everything a personality's move-selection strategy needs. Deliberately
 /// carries a `ChessEngineRepository` reference (not just a pre-fetched
 /// candidate list) because personalities genuinely need different engine
 /// calls — Aggressor wants `multiPv: 10, mateLimit: 8`, Trickster wants
 /// `multiPv: 6` — not just different scoring over the same candidates.
+///
+/// `personalityId`/`ply`/`selectedOpening`/`mateSafetyEnabled`/`mateSafetyN`
+/// were added in docs/features/refactor_04_bot_move_pipeline.md — they're
+/// not needed by the per-personality strategies above, only by the
+/// pipeline steps and decorator in `bot_move_pipeline.dart`, but living on
+/// the one context object `GameNotifier` already builds per bot turn is
+/// simpler than threading two context types through the pipeline.
 class BotMoveContext {
   final String fen;
   final int elo;
   final ChessEngineRepository engine;
   final Map<String, int> positionCounts;
+  final String personalityId;
+  final int ply;
+  final ChessOpening? selectedOpening;
+  final bool mateSafetyEnabled;
+  final int mateSafetyN;
 
   /// Called by a strategy that fetches a fresh MultiPV candidate list, so
   /// the caller can reuse the top candidate's score for later game-review
@@ -36,6 +49,11 @@ class BotMoveContext {
     required this.elo,
     required this.engine,
     required this.positionCounts,
+    this.personalityId = '',
+    this.ply = 0,
+    this.selectedOpening,
+    this.mateSafetyEnabled = false,
+    this.mateSafetyN = 3,
     this.recordEval,
   });
 

@@ -1,10 +1,24 @@
 # Refactor Phase 4: Bot Move Pipeline as Chain of Responsibility + Decorator
 
-**Status:** Planned — not built. Part of
-[refactor_overview.md](refactor_overview.md), phase 4. Depends on phase 3
-(`BotMoveStrategy`/`BotMoveContext`/the strategy registry already
-existing) — this phase wraps that registry in an explicit pipeline rather
-than changing the strategies themselves.
+**Status:** Built, matching this plan closely. Two implementation notes
+beyond the sketch below:
+
+1. `MateSafetyDecorator.selectMove` guards on the chosen move being
+   `'(none)'`/empty *before* calling `getMateDistance` — the sketch's
+   `if (!ctx.mateSafetyEnabled) return chosen;` early-out doesn't cover
+   that case, and `applyUciToFen(ctx.fen, '(none)')` would throw.
+   `_playBotReply`'s old call order (`_applyMateSafety` was only ever
+   invoked after checking `rawUci != '(none)'`) made this implicit before;
+   it's now an explicit guard in the decorator itself.
+2. `MateSafetyDecorator`'s `getMateDistance` call passes
+   `movetimeMs: (n * 200).clamp(300, 3000)` (verbatim from the old
+   `_applyMateSafety`) rather than the sketch's bare call with no
+   `movetimeMs` argument — dropping that would have silently shortened
+   the mate search for small `mateSafetyN` values.
+
+`GameNotifier` gained a small `_botMoveContext(fen, elo)` builder (not in
+the original sketch) so `_playBotReply` doesn't repeat the same six-field
+`BotMoveContext(...)` construction inline.
 
 ## Problem
 

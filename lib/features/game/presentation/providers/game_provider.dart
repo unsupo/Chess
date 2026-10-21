@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:chess/chess.dart' as chess_lib;
 import '../../data/repositories/chess_engine_repository_impl.dart';
+import '../../domain/entities/bot_move_pipeline.dart';
 import '../../domain/entities/bot_move_strategy.dart';
 import '../../domain/entities/bot_personality.dart';
 import '../../domain/entities/chess_move_analysis.dart' show applyUciToFen;
@@ -612,141 +613,23 @@ class GameNotifier extends StateNotifier<GameState> {
     });
   }
 
-  int _moveTimeMs(int elo) => (elo / 1.5).floor().clamp(400, 2000);
-
-  // Stockfish's `Skill Level` bottoms out at ~1300 real playing strength
-  // even at its own minimum (see docs/GOTCHAS.md — the Skill Level knob
-  // was never designed to emulate a genuinely weak human). Below 1000 ELO
-  // on the difficulty slider, it can't get any weaker on its own, so below
-  // that we blend in two increasingly common substitutes for the engine's
-  // real choice, matching the "weak bot" behavior chess.com's own
-  // low-rated bots use (shallow/blundering, not a strong engine turned
-  // down) and, at the very bottom, active self-sabotage:
-  //   - a uniformly random legal move ("blunder"): 0% at 1000 ELO, rising
-  //     to 50% at 250 and below — the same trick
-  //     web_engine_repository.dart's mock already uses for every move.
-  //   - the worst move out of a small sample ("worst move"): 0% at 250
-  //     ELO and above, rising to 100% at the slider's floor (0) — "trying
-  //     to lose as fast as possible".
-  // The two bands meet at 250 (50%/0%) so the transition from "normal
-  // weak play" to "actively trying to lose" is continuous, not a jump.
-  static const _worstMoveThreshold = 250;
   final _random = Random();
 
-  double _blunderChance(int elo) {
-    if (elo >= 1000) return 0;
-    return ((1000 - elo) / (1000 - _worstMoveThreshold)).clamp(0.0, 1.0) * 0.5;
-  }
-
-  double _worstMoveChance(int elo) {
-    if (elo >= _worstMoveThreshold) return 0;
-    return (1 - elo / _worstMoveThreshold).clamp(0.0, 1.0);
-  }
-
-  /// Evaluates a small random sample of legal moves and returns whichever
-  /// leaves the bot worst off. Sampling (not every legal move) keeps this
-  /// from taking seconds in the opening, where there are 20+ legal moves;
-  /// "worst of ~5" is still a clearly self-destructive choice almost all
-  /// the time without the latency of exhaustively checking every option.
-  Future<String> _pickWorstMove(String fen) async {
-    final chess = chess_lib.Chess()..load(fen);
-    final moves = chess.generate_moves()..shuffle(_random);
-    if (moves.isEmpty) return '(none)';
-
-    String worstUci = '';
-    int? worstEvalForOpponent;
-    for (final m in moves.take(5)) {
-      final from = chess_lib.Chess.algebraic(m.from);
-      final to = chess_lib.Chess.algebraic(m.to);
-      final promo = m.promotion != null ? m.promotion!.name : '';
-      final uci = '$from$to$promo';
-      final afterFen = applyUciToFen(fen, uci);
-      // evaluateFen is from the perspective of the side to move in
-      // afterFen — i.e. the opponent. The higher that is, the worse this
-      // move was for the bot.
-      final evalForOpponent = await _engine.evaluateFen(afterFen);
-      if (worstEvalForOpponent == null ||
-          evalForOpponent > worstEvalForOpponent) {
-        worstEvalForOpponent = evalForOpponent;
-        worstUci = uci;
-      }
-    }
-    return worstUci;
-  }
-
-  Future<String> _pickBotMove(String fen, int elo) async {
-    // Opening-book conformance: while an opening is selected, the bot plays
-    // the book reply too (so both sides rehearse the exact line) rather
-    // than its usual personality/difficulty logic, until the stored line
-    // runs out.
-    final opening = state.selectedOpening;
-    final ply = state.sanMoves.length;
-    if (opening != null && ply < opening.uciMoves.length) {
-      return opening.uciMoves[ply];
-    }
-
-    final posCounts = state.positionCounts;
-
-    // Below 1000 ELO, apply the difficulty weakening curve to all personalities
-    // so dragging the ELO slider down to Beginner / Very Easy / Trying to Lose
-    // genuinely weakens custom personalities too.
-    final roll = _random.nextDouble();
-    if (roll < _worstMoveChance(elo)) {
-      return _pickWorstMove(fen);
-    }
-    if (roll < _worstMoveChance(elo) + _blunderChance(elo)) {
-      final chess = chess_lib.Chess()..load(fen);
-      final moves = chess.generate_moves();
-      if (moves.isNotEmpty) {
-        final nonDrawing = moves.where((m) {
-          final uci =
-              '${m.fromAlgebraic}${m.toAlgebraic}${m.promotion?.name ?? ''}';
-          return !ScholarsMateHunterPolicy.wouldCauseDraw(
-                fen,
-                uci,
-                posCounts,
-              ) &&
-              !ScholarsMateHunterPolicy.wouldRepeatPosition(
-                fen,
-                uci,
-                posCounts,
-              );
-        }).toList();
-        var pool = nonDrawing.isNotEmpty ? nonDrawing : moves;
-        // If Pawn Pusher blunders at low ELO, still prefer pushing a random pawn!
-        if (state.personality.id == 'pawn_pusher') {
-          final pawnPool = pool
-              .where((m) => m.piece == chess_lib.PieceType.PAWN)
-              .toList();
-          if (pawnPool.isNotEmpty) {
-            pool = pawnPool;
-          }
-        }
-        final m = pool[_random.nextInt(pool.length)];
-        final from = chess_lib.Chess.algebraic(m.from);
-        final to = chess_lib.Chess.algebraic(m.to);
-        final promo = m.promotion != null ? m.promotion!.name : '';
-        return '$from$to$promo';
-      }
-    }
-
-    // Personality-specific move selection — see
-    // docs/features/refactor_03_bot_strategy_pattern.md. Each personality's
-    // actual logic still lives in its own policy class; this is just the
-    // unified dispatch + fallback.
-    final ctx = BotMoveContext(
-      fen: fen,
-      elo: elo,
-      engine: _engine,
-      positionCounts: posCounts,
-      recordEval: (f, cp) => _fenEvalCache[GameReviewAnalyzer.fenKey(f)] = cp,
-    );
-    final chosen = await strategyForPersonalityId(
-      state.personality.id,
-    ).selectMove(ctx);
-    if (chosen != null && chosen.isNotEmpty) return chosen;
-    return await DefaultBotMoveStrategy().selectMove(ctx) ?? '(none)';
-  }
+  /// Builds the context one bot turn needs for
+  /// `MateSafetyDecorator(kDefaultBotMovePipeline).selectMove(ctx)` — see
+  /// docs/features/refactor_04_bot_move_pipeline.md.
+  BotMoveContext _botMoveContext(String fen, int elo) => BotMoveContext(
+    fen: fen,
+    elo: elo,
+    engine: _engine,
+    positionCounts: state.positionCounts,
+    personalityId: state.personality.id,
+    ply: state.sanMoves.length,
+    selectedOpening: state.selectedOpening,
+    mateSafetyEnabled: state.mateSafetyEnabled,
+    mateSafetyN: state.mateSafetyN,
+    recordEval: (f, cp) => _fenEvalCache[GameReviewAnalyzer.fenKey(f)] = cp,
+  );
 
   Future<void> setDifficulty(int elo) async {
     state = state.copyWith(botElo: elo);
@@ -924,28 +807,6 @@ class GameNotifier extends StateNotifier<GameState> {
     } else {
       state = state.copyWith(viewPly: nextPly, clearError: true);
     }
-  }
-
-  // If mate safety is on, checks whether [candidateUci] (played from
-  // [fen]) hands the human a forced mate within `state.mateSafetyN`
-  // moves — if so, substitutes the engine's own straightforward best move
-  // instead. This is a best-effort single retry, not a guarantee: in a
-  // position where literally every legal move allows a short mate, the
-  // fallback can still be unsafe, and this doesn't re-check it. The mate
-  // search always runs at full engine strength regardless of bot
-  // difficulty (same reasoning as the anti-blunder shield — see
-  // GOTCHAS #14), since the whole point is "no matter how weak" the bot is.
-  Future<String> _applyMateSafety(String fen, String candidateUci) async {
-    if (!state.mateSafetyEnabled) return candidateUci;
-    final n = state.mateSafetyN;
-    final afterCandidate = applyUciToFen(fen, candidateUci);
-    final humanMateIn = await _engine.getMateDistance(
-      afterCandidate,
-      movetimeMs: (n * 200).clamp(300, 3000),
-    );
-    final isUnsafe = humanMateIn != null && humanMateIn > 0 && humanMateIn <= n;
-    if (!isUnsafe) return candidateUci;
-    return _engine.getBestMove(fen, movetimeMs: _moveTimeMs(state.botElo));
   }
 
   /// Whether the human plays White (`!boardFlipped`) or Black (`boardFlipped`).
@@ -1223,14 +1084,16 @@ class GameNotifier extends StateNotifier<GameState> {
     try {
       final preBotParts = fen.split(RegExp(r'\s+'));
       final botMovedWhite = preBotParts.length < 2 || preBotParts[1] != 'b';
-      final rawUci = await _pickBotMove(fen, state.botElo);
+      final ctx = _botMoveContext(fen, state.botElo);
+      final botUci = await MateSafetyDecorator(
+        kDefaultBotMovePipeline,
+      ).selectMove(ctx);
 
-      if (rawUci == '(none)' || rawUci.isEmpty) {
+      if (botUci == '(none)' || botUci.isEmpty) {
         state = state.copyWith(isEvaluating: false);
         return;
       }
 
-      final botUci = await _applyMateSafety(fen, rawUci);
       final (afterBot, botSan) = _applyUciWithSan(fen, botUci);
       final incMs = state.timeControl.isTimed
           ? state.timeControl.incrementMs
