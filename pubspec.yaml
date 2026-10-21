@@ -36,8 +36,10 @@ dependencies:
   cupertino_icons: ^1.0.8
   flutter_chess_board: ^1.0.1
   chess: ^0.7.0
-  stockfish: ^1.8.1
+  stockfish:
+    path: third_party/stockfish
   flutter_riverpod: ^3.2.1
+  chess_vectors_flutter: ^1.1.0
 
 dev_dependencies:
   flutter_test:

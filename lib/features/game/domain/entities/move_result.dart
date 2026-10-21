@@ -1,5 +1,1 @@
-enum MoveResult {
-  accepted,
-  blunder,
-  illegal,
-}
+enum MoveResult { accepted, blunder, illegal }

@@ -43,3 +43,13 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Node & Playwright network captures
+node_modules/
+package-lock.json
+/captured_network/
+
+# Claude Code: ephemeral per-session state, never shared project config
+.claude/worktrees/
+.claude/settings.local.json
+

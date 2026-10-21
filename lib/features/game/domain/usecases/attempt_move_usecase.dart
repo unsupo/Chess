@@ -4,16 +4,20 @@ import '../repositories/chess_engine_repository.dart';
 class AttemptMoveUseCase {
   final ChessEngineRepository _repository;
   final int blunderThresholdCp = 300; // 3 pawns
+  int? lastCurrentEval;
+  int? lastNewEval;
 
   AttemptMoveUseCase(this._repository);
 
   Future<MoveResult> execute({
     required String currentFen,
-    required String newFen, 
+    required String newFen,
   }) async {
-    // 1. Evaluate current vs new position with higher depth (12)
-    final currentEval = await _repository.evaluateFen(currentFen, depth: 12);
-    final newEval = await _repository.evaluateFen(newFen, depth: 12);
+    // depth 5 is fast (~200ms) and reliable enough to catch piece-dropping blunders
+    final currentEval = await _repository.evaluateFen(currentFen, depth: 5);
+    final newEval = await _repository.evaluateFen(newFen, depth: 5);
+    lastCurrentEval = currentEval;
+    lastNewEval = newEval;
 
     // UCI engine evaluation is ALWAYS relative to the side whose turn it is.
     // currentFen is evaluated from the mover's perspective.
