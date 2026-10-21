@@ -44,6 +44,12 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
+# Vendored Stockfish NNUE networks — the Xcode build phase downloads these
+# itself (curl, skipped if already present) from
+# https://tests.stockfishchess.org/api/nn/, so they don't belong in git;
+# the "big net" exceeds GitHub's 100MB file-size limit outright.
+third_party/stockfish/**/*.nnue
+
 # Node & Playwright network captures
 node_modules/
 package-lock.json
